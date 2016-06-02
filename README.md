@@ -12,21 +12,10 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		mcall --t=get --i=http://www.google.com/test1
 		vi $PWD/tz_mcall.log
 		
-	- case 2: make multiple requests with json format
-		mcall --t=get --i=${params}
-		
-		${params} format
-		{urls: [
-			{url: "http://www.google.com/test1", id: "aaa", pswd: "bbb"},
-			{url: "http://www.google.com/test2", id: "aaa", pswd: "bbb"},
-			{url: "http://www.google.com/test3", id: "aaa", pswd: "bbb"}
-			]
-		}		
-		
-	- case 3: use configration file
+	- case 2: use configration file
 		mcall --c=etc/mcall.cfg
 		
-	- case 4: write result on web
+	- case 3: write result on web
 		mcall --t=get -w=on
 		open brower and call with http://localhost:8080/mcall/${params}
 

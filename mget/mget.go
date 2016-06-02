@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"github.com/gorilla/pat"
 	logging "github.com/op/go-logging"
@@ -22,29 +20,33 @@ import (
 )
 
 var (
-	HCIDS       []int
-	STYPE       string
-	LOGFILE     *os.File
-	DOMAIN      string
-	CORE_URL                  = "CORE_URL/1/stats/uptime_list?company_id=1&start_time=1464636372&end_time=1464722772&hc_id="
-	GRAPHTE_URL               = "http://173.243.129.12/render?target=summarize(averageSeries(dhc.stats.hcid.HCID.*.metrics.state.*),%221hour%22,%22avg%22)&target=summarize(averageSeries(dhc.stats.hcid.HCID.*.judge.state),%221hour%22,%22avg%22)&from=-1440min&until=-0min&format=json"
-	LOGPATH                   = "/var/log/dashboard/graphite_m.log"
-	LOGFMT                    = "%{color}%{time:15:04:05.000000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}"
-	LOGFORMAT                 = logging.MustStringFormatter(LOGFMT)
-	LOG                       = logging.MustGetLogger("logfile")
-	GLOGLEVEL   logging.Level = logging.DEBUG
-	CONFIGFILE                = "/etc/dashboard/dashboard.ini"
-	configfile  *string       = flag.String("config", CONFIGFILE, "Config file location default: "+CONFIGFILE)
-	cfg         ini.File
+	INPUTS []string
+	STYPE  string
+)
+
+var (
+	cfg        ini.File
+	CONFIGFILE string
+	WORKERNUM  = 10
+	HTTPHOST   = "localhost"
+	HTTPPORT   = "8080"
+)
+
+var (
+	LOGFILE   *os.File
+	LOGFMT                  = "%{color}%{time:15:04:05.000000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}"
+	LOGFORMAT               = logging.MustStringFormatter(LOGFMT)
+	LOG                     = logging.MustGetLogger("logfile")
+	GLOGLEVEL logging.Level = logging.DEBUG
 )
 
 type FetchedResult struct {
-	url     int
+	input   string
 	content string
 }
 
-type FetchedUrl struct {
-	m map[int]error
+type FetchedInput struct {
+	m map[string]error
 	sync.Mutex
 }
 
@@ -52,92 +54,86 @@ type Crawler interface {
 	Crawl()
 }
 
-type GraphiteFetch struct {
-	fetchedUrl *FetchedUrl
-	p          *Pipeline
-	result     chan FetchedResult
-	url        int
+type CallFetch struct {
+	fetchedInput *FetchedInput
+	p            *Pipeline
+	result       chan FetchedResult
+	input        string
 }
 
-func fetch(url int) (string, error) {
-	if url == -1 {
+func fetch(input string) (string, error) {
+	if input == "" {
 		return "", nil
 	}
-	var urlstr = ""
-	if STYPE == "graphite" {
-		var hcid = formatHcid(strconv.Itoa(url))
-		var baseUrl = GRAPHTE_URL
-		urlstr = strings.Replace(baseUrl, "HCID", hcid, -1)
-	} else {
-		core_url := strings.Replace(CORE_URL, "CORE_URL", DOMAIN, -1)
-		urlstr = core_url + strconv.Itoa(url)
-	}
 
-	LOG.Debug("==== %s", urlstr)
-	res, err := http.Get(urlstr)
+	LOG.Debug("==== %s", input)
+	res, err := http.Get(input)
 	if err != nil {
-		LOG.Debug(err)
+		LOG.Panic(err)
 		return "", err
 	}
 	defer res.Body.Close()
 	doc, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		LOG.Panic(err)
+		return "", err
+	}
 	return string(doc), nil
 }
 
-func (g *GraphiteFetch) Request(url int) {
-	g.p.request <- &GraphiteFetch{
-		fetchedUrl: g.fetchedUrl,
-		p:          g.p,
-		result:     g.result,
-		url:        url,
+func (g *CallFetch) Request(input string) {
+	g.p.request <- &CallFetch{
+		fetchedInput: g.fetchedInput,
+		p:            g.p,
+		result:       g.result,
+		input:        input,
 	}
 }
 
-func (g *GraphiteFetch) parseContent(url int, doc string) <-chan string {
+func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 	content := make(chan string)
 	go func() {
 		content <- doc
 		chk := false
-		val := -1
-		g.fetchedUrl.Lock()
-		for n := range HCIDS {
-			if _, ok := g.fetchedUrl.m[HCIDS[n]]; !ok {
+		val := ""
+		g.fetchedInput.Lock()
+		for n := range INPUTS {
+			if _, ok := g.fetchedInput.m[INPUTS[n]]; !ok {
 				chk = true
-				val = HCIDS[n]
+				val = INPUTS[n]
 				g.Request(val)
 				break
 			}
 		}
 		if chk == false {
-
 		}
-		g.fetchedUrl.Unlock()
+		g.fetchedInput.Unlock()
 	}()
 	return content
 }
 
-func (g *GraphiteFetch) Crawl() {
-	g.fetchedUrl.Lock()
-	if _, ok := g.fetchedUrl.m[g.url]; ok {
-		g.fetchedUrl.Unlock()
+func (g *CallFetch) Crawl() {
+	g.fetchedInput.Lock()
+	if _, ok := g.fetchedInput.m[g.input]; ok {
+		g.fetchedInput.Unlock()
 		return
 	}
-	g.fetchedUrl.Unlock()
+	g.fetchedInput.Unlock()
 
-	doc, err := fetch(g.url)
+	doc, err := fetch(g.input)
 	if err != nil {
-		go func(u int) {
+		go func(u string) {
 			g.Request(u)
-		}(g.url)
+		}(g.input)
 		return
 	}
 
-	g.fetchedUrl.Lock()
-	g.fetchedUrl.m[g.url] = err
-	g.fetchedUrl.Unlock()
+	g.fetchedInput.Lock()
+	g.fetchedInput.m[g.input] = err
+	g.fetchedInput.Unlock()
 
-	content := <-g.parseContent(g.url, doc)
-	g.result <- FetchedResult{g.url, content}
+	content := <-g.parseContent(g.input, doc)
+	g.result <- FetchedResult{g.input, content}
 }
 
 type Pipeline struct {
@@ -166,9 +162,8 @@ func (p *Pipeline) Worker() {
 }
 
 func (p *Pipeline) Run() {
-	const numWorkers = 100
-	p.wg.Add(numWorkers)
-	for i := 0; i < numWorkers; i++ {
+	p.wg.Add(WORKERNUM)
+	for i := 0; i < WORKERNUM; i++ {
 		go func() {
 			p.Worker()
 			p.wg.Done()
@@ -178,27 +173,6 @@ func (p *Pipeline) Run() {
 	go func() {
 		p.wg.Wait()
 	}()
-}
-
-func formatHcid(hcid string) string {
-	maxlen := 6
-	out := ""
-	currlen := 0
-
-	for _, r := range hcid {
-		char := string(r)
-		out = fmt.Sprintf("%s.%s", out, char)
-		currlen++
-	}
-
-	out = strings.Trim(out, ".")
-
-	pad := maxlen - currlen
-	for i := 1; i <= pad; i++ {
-		out = fmt.Sprintf("%s.%s", "0", out)
-	}
-	LOG.Debug("shard: %s", out)
-	return out
 }
 
 func mainExec() map[string]string {
@@ -212,23 +186,23 @@ func mainExec() map[string]string {
 	p := NewPipeline()
 	p.Run()
 
-	following := &GraphiteFetch{
-		fetchedUrl: &FetchedUrl{m: make(map[int]error)},
-		p:          p,
-		result:     make(chan FetchedResult),
-		url:        -1,
+	call := &CallFetch{
+		fetchedInput: &FetchedInput{m: make(map[string]error)},
+		p:            p,
+		result:       make(chan FetchedResult),
+		input:        "",
 	}
-	p.request <- following
+	p.request <- call
 
 	result := make(map[string]string)
 	count := 0
-	LOG.Debug("=len(HCIDS)=== %d", len(HCIDS))
-	for a := range following.result {
-		LOG.Debug("==== %d %s", a.url, a.content)
+	LOG.Debug("=len(INPUTS)=== %d", len(INPUTS))
+	for a := range call.result {
+		LOG.Debug("==== %d %s", a.input, a.content)
 		count++
 		countStr := strconv.Itoa(count)
 		result[countStr] = a.content
-		if count > len(HCIDS) {
+		if count > len(INPUTS) {
 			close(p.done)
 			break
 		}
@@ -239,26 +213,6 @@ func mainExec() map[string]string {
 	return result
 }
 
-func readValConf(path string, key string) string {
-	inFile, err := os.Open(path)
-	if err != nil {
-		fmt.Println(err.Error() + `: ` + path)
-		return ""
-	} else {
-		defer inFile.Close()
-	}
-	scanner := bufio.NewScanner(inFile)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		str := scanner.Text()
-		if strings.Index(str, key) != -1 {
-			str = str[strings.Index(str, "=")+1 : len(str)]
-			return strings.Replace(strings.TrimSpace(str), "\"", "", -1)
-		}
-	}
-	return ""
-}
-
 // http://localhost:8080/main/core/1418,1419,2502,2694,2932,2933,2695
 // http://localhost:8080/main/graphite/1418,1419,2502,2694,2932,2933,2695
 func mainHandle(w http.ResponseWriter, r *http.Request) {
@@ -266,12 +220,12 @@ func mainHandle(w http.ResponseWriter, r *http.Request) {
 	hcidStr := r.URL.Query().Get(":hcids")
 	fmt.Println(STYPE, hcidStr)
 
-	HCIDS = []int{}
-	arry := strings.Split(hcidStr, ",")
-	for i := range arry {
-		n, _ := strconv.Atoi(arry[i])
-		HCIDS = append(HCIDS, n)
-	}
+	INPUTS = []string{}
+	INPUTS = strings.Split(hcidStr, ",")
+	//	arry := strings.Split(hcidStr, ",")
+	//	for i := range arry {
+	//		INPUTS = append(INPUTS, arry[i])
+	//	}
 
 	res := make(map[string]string)
 	result := mainExec()
@@ -293,7 +247,6 @@ func mainHandle(w http.ResponseWriter, r *http.Request) {
 }
 
 func webserver() {
-	//kill channel to programatically
 	killch := make(chan os.Signal, 1)
 	signal.Notify(killch, os.Interrupt)
 	signal.Notify(killch, syscall.SIGTERM)
@@ -304,20 +257,14 @@ func webserver() {
 		LOG.Fatalf("Interrupt %s", time.Now().String())
 	}()
 
-	httphost := "localhost"
-	httpport := "8080"
-
-	//we need to start 2 servers, http for status and zmq
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	//first start http interface for self stats
 	go func() {
 		r := pat.New()
 		r.Get("/main/{type}/{hcids}", http.HandlerFunc(mainHandle))
 		http.Handle("/", r)
-
-		LOG.Debug("Listening %s : %s", httphost, httpport)
-		err := http.ListenAndServe(httphost+":"+httpport, nil)
+		LOG.Debug("Listening %s : %s", HTTPHOST, HTTPPORT)
+		err := http.ListenAndServe(HTTPHOST+":"+HTTPPORT, nil)
 		if err != nil {
 			LOG.Fatalf("ListenAndServe: %s", err)
 		}
@@ -329,76 +276,134 @@ func webserver() {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 // 2way of run
-// - 1st: graphite_m web
+// - 1st: mget web
 // 		call from brower: http://localhost:8080/main/core/1418,1419,2502,2694,2932,2933,2695
-// - 2nd: graphite_m core/graphite 1418,1419,2502,2694,2932,2933,2695
+// - 2nd: mget core/graphite 1418,1419,2502,2694,2932,2933,2695
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 func main() {
 
-	var logfile = LOGPATH
-	if _, err := os.Stat(LOGPATH); err != nil {
-		LOGPATH, _ := os.Getwd()
-		logfile = LOGPATH + "/graphite_m.log"
-	}
-
-	LOGFILE, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		LOG.Fatalf("Log file error: %s %s", logfile, err)
-	}
-	defer func() {
-		LOGFILE.WriteString(fmt.Sprintf("closing %s", time.UnixDate))
-		LOGFILE.Close()
-	}()
-
-	logback := logging.NewLogBackend(LOGFILE, "", 0)
-	logformatted := logging.NewBackendFormatter(logback, LOGFORMAT)
-	loglevel := "DEBUG"
-	GLOGLEVEL, err := logging.LogLevel(loglevel)
-	if err != nil {
-		GLOGLEVEL = logging.DEBUG
-	}
-	logging.SetBackend(logformatted)
-	logging.SetLevel(GLOGLEVEL, "")
-
-	//	cfg, err := ini.LoadFile(*configfile)
-	//	if err != nil {
-	//		LOG.Fatalf("parse config "+*configfile+" file error: %s", err)
-	//	}
-	//
-	//	logfile, ok := cfg.Get("core_api_url", "logfile")
-	//	if !ok {
-	//		LOG.Fatalf("'logfile' missing from 'system' section")
-	//	}
-	DOMAIN = readValConf(CONFIGFILE, "core_api_url")
-	if DOMAIN == "" {
-		DOMAIN = "http://core.local.xdn.com"
-	}
-
-	programName := os.Args[0:1]
 	if len(os.Args) < 2 {
-		HCIDS = append(HCIDS, 1418, 1419, 2502, 2694, 2932, 2933, 2695)
-		mainExec()
+		fmt.Println("No parameter!")
+		return
 	} else {
-		typeStr := os.Args[1:2]
-		if len(os.Args) >= 3 {
-			hcidStr := os.Args[2:3]
-			allArgs := os.Args[1:]
-			fmt.Println(programName, typeStr, hcidStr, allArgs)
-			arry := strings.Split(hcidStr[0], ",")
-			for i := range arry {
-				n, _ := strconv.Atoi(arry[i])
-				HCIDS = append(HCIDS, n)
+		// mcall --t=get --i=http://core.local.xdn.com/1/stats/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772^hc_id=1418
+		// mcall --c=/Users/dhong/Documents/workspace/go/src/tz.com/tz_mcall/etc/mcall.cfg
+
+		allArgs := os.Args[1:]
+		fmt.Println("==== %s", allArgs)
+		////[ argument ]////////////////////////////////////////////////////////////////////////////////
+		web_enble := false
+		for i := range allArgs {
+			str := allArgs[i]
+			key := str[0:strings.Index(str, "=")]
+			val := str[strings.Index(str, "=")+1 : len(str)]
+			switch key {
+			case "--t":
+				STYPE = val
+			case "--i":
+				INPUTS = append(INPUTS, val)
+			case "--c":
+				CONFIGFILE = val
+			case "--w":
+				if val == "on" {
+					web_enble = true
+				}
 			}
-		} else {
-			allArgs := os.Args[1:]
-			fmt.Println(programName, typeStr, allArgs)
 		}
-		if typeStr[0] == "web" {
+
+		////[ configuratin file ]////////////////////////////////////////////////////////////////////////////////
+		var logfile = ""
+		if CONFIGFILE != "" {
+			cfg, err := ini.LoadFile(CONFIGFILE)
+			if err != nil {
+				fmt.Println("parse config "+CONFIGFILE+" file error: %s", err)
+			}
+
+			input, ok := cfg.Get("request", "input")
+			if !ok {
+				fmt.Println("'input' missing from 'request' section")
+			}
+			type Inputs struct {
+				Inputs []map[string]interface{} `json:"urls"`
+			}
+			var data Inputs
+			err = json.Unmarshal([]byte(input), &data)
+			if err != nil {
+				fmt.Println("Unmarshal error %s", err)
+			}
+			for i := range data.Inputs {
+				url := data.Inputs[i]["url"]
+				INPUTS = append(INPUTS, url.(string))
+			}
+
+			workerNumber, ok := cfg.Get("worker", "number")
+			fmt.Println("workerNumber : %s", workerNumber)
+			if !ok {
+				fmt.Println("'file' missing from 'worker", "number")
+			} else {
+				WORKERNUM, _ = strconv.Atoi(workerNumber)
+			}
+
+			webEnbleStr, ok := cfg.Get("webserver", "enable")
+			fmt.Println("web_enble : %s", webEnbleStr)
+			if !ok {
+				fmt.Println("'enable' missing from 'webserver", "enable")
+			}
+
+			if webEnbleStr == "on" {
+				web_enble = true
+				httpost, ok := cfg.Get("webserver", "host")
+				fmt.Println("httpost : %s", httpost)
+				if !ok {
+					fmt.Println("'host' missing from 'webserver", "host")
+				} else {
+					HTTPHOST = httpost
+				}
+
+				httpport, ok := cfg.Get("webserver", "port")
+				fmt.Println("httpport : %s", httpport)
+				if !ok {
+					fmt.Println("'port' missing from 'webserver", "port")
+				} else {
+					HTTPPORT = httpport
+				}
+			}
+
+		}
+
+		////[ log file ]////////////////////////////////////////////////////////////////////////////////
+		if logfile == "" {
+			logfile = "/var/log/mcall/mcall.log"
+		}
+		if _, err := os.Stat(logfile); err != nil {
+			logfile, _ := os.Getwd()
+			logfile = logfile + "/mget.log"
+		}
+
+		LOGFILE, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			LOG.Fatalf("Log file error: %s %s", logfile, err)
+		}
+		defer func() {
+			LOGFILE.WriteString(fmt.Sprintf("closing %s", time.UnixDate))
+			LOGFILE.Close()
+		}()
+
+		logback := logging.NewLogBackend(LOGFILE, "", 0)
+		logformatted := logging.NewBackendFormatter(logback, LOGFORMAT)
+		loglevel := "DEBUG"
+		GLOGLEVEL, err := logging.LogLevel(loglevel)
+		if err != nil {
+			GLOGLEVEL = logging.DEBUG
+		}
+		logging.SetBackend(logformatted)
+		logging.SetLevel(GLOGLEVEL, "")
+
+		////[ run app ]////////////////////////////////////////////////////////////////////////////////
+		if web_enble == true {
 			webserver()
 		} else {
-			STYPE = typeStr[0]
 			mainExec()
 		}
 	}
-	fmt.Println(HCIDS)
 }
