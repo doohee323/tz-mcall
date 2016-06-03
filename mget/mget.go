@@ -8,9 +8,10 @@ import (
 	"github.com/vaughan0/go-ini"
 	"io"
 	"io/ioutil"
-	"math/big"
+	_ "math/big"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"strconv"
@@ -29,6 +30,7 @@ var (
 	cfg        ini.File
 	CONFIGFILE string
 	WORKERNUM  = 10
+	WEBENBLED  = false
 	HTTPHOST   = "localhost"
 	HTTPPORT   = "8080"
 )
@@ -51,8 +53,8 @@ type FetchedInput struct {
 	sync.Mutex
 }
 
-type Queryer interface {
-	Query()
+type Commander interface {
+	command()
 }
 
 type CallFetch struct {
@@ -67,7 +69,7 @@ func htmlFetch(input string) (string, error) {
 		return "", nil
 	}
 
-	LOG.Debug("==== %s", input)
+	LOG.Debug("= input: ", input)
 	res, err := http.Get(input)
 	if err != nil {
 		LOG.Panic(err)
@@ -78,11 +80,40 @@ func htmlFetch(input string) (string, error) {
 	if err != nil {
 		LOG.Panic(err)
 		return "", err
+	} else {
+		LOG.Debug(string(doc))
 	}
 	return string(doc), nil
 }
 
-func (g *CallFetch) Request(input string) {
+func cmdFetch(input string) (string, error) {
+	if input == "" {
+		return "", nil
+	}
+
+	LOG.Debug("= input: ", input)
+	doc, err := exeCmd(input)
+	if err != nil {
+		LOG.Panic(err)
+		return "", err
+	} else {
+		LOG.Debug(doc)
+	}
+	return string(doc), nil
+}
+
+func exeCmd(cmd string) (string, error) {
+	parts := strings.Fields(cmd)
+	head := parts[0]
+	parts = parts[1:len(parts)]
+	out, err := exec.Command(head, parts...).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out), err
+}
+
+func (g *CallFetch) request(input string) {
 	g.p.request <- &CallFetch{
 		fetchedInput: g.fetchedInput,
 		p:            g.p,
@@ -102,7 +133,7 @@ func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 			if _, ok := g.fetchedInput.m[INPUTS[n]]; !ok {
 				chk = true
 				val = INPUTS[n]
-				g.Request(val)
+				g.request(val)
 				break
 			}
 		}
@@ -113,7 +144,7 @@ func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 	return content
 }
 
-func (g *CallFetch) Query() {
+func (g *CallFetch) command() {
 	g.fetchedInput.Lock()
 	if _, ok := g.fetchedInput.m[g.input]; ok {
 		g.fetchedInput.Unlock()
@@ -121,12 +152,26 @@ func (g *CallFetch) Query() {
 	}
 	g.fetchedInput.Unlock()
 
-	doc, err := htmlFetch(g.input)
-	if err != nil {
-		go func(u string) {
-			g.Request(u)
-		}(g.input)
-		return
+	var doc string
+	var err error
+	if g.input != "" {
+		if STYPE == "cmd" {
+			doc, err = cmdFetch(g.input)
+			if err != nil {
+				go func(u string) {
+					g.request(u)
+				}(g.input)
+				return
+			}
+		} else {
+			doc, err = htmlFetch(g.input)
+			if err != nil {
+				go func(u string) {
+					g.request(u)
+				}(g.input)
+				return
+			}
+		}
 	}
 
 	g.fetchedInput.Lock()
@@ -138,14 +183,14 @@ func (g *CallFetch) Query() {
 }
 
 type Pipeline struct {
-	request chan Queryer
+	request chan Commander
 	done    chan struct{}
 	wg      *sync.WaitGroup
 }
 
 func NewPipeline() *Pipeline {
 	return &Pipeline{
-		request: make(chan Queryer),
+		request: make(chan Commander),
 		done:    make(chan struct{}),
 		wg:      new(sync.WaitGroup),
 	}
@@ -157,7 +202,7 @@ func (p *Pipeline) Worker() {
 		case <-p.done:
 			return
 		default:
-			r.Query()
+			r.command()
 		}
 	}
 }
@@ -178,9 +223,6 @@ func (p *Pipeline) Run() {
 
 func mainExec() map[string]string {
 	start := time.Now()
-	r := new(big.Int)
-	fmt.Println(r.Binomial(1000, 10))
-
 	numCPUs := runtime.NumCPU()
 	runtime.GOMAXPROCS(numCPUs)
 
@@ -197,13 +239,12 @@ func mainExec() map[string]string {
 
 	result := make(map[string]string)
 	count := 0
-	LOG.Debug("=len(INPUTS)=== %d", len(INPUTS))
+	LOG.Debug("len(INPUTS): ", len(INPUTS))
 	for a := range call.result {
-		LOG.Debug("==== %d %s", a.input, a.content)
 		count++
 		countStr := strconv.Itoa(count)
 		result[countStr] = a.content
-		LOG.Debug("==== count: %d", count)
+		LOG.Debug("count: ", count)
 		if count > len(INPUTS) {
 			close(p.done)
 			break
@@ -211,15 +252,15 @@ func mainExec() map[string]string {
 	}
 
 	elapsed := time.Since(start)
-	LOG.Debug("It took %s", elapsed)
+	LOG.Debug("elapsed: ", elapsed)
 	return result
 }
 
-// http://localhost:8080/mcall/get/%7B%22inputs%22%3A%5B%7B%22input%22%3A%22http%3A%2F%2Fcore.local.xdn.com%2Ftest1%22%2C%22id%22%3A%22aaa%22%2C%22pswd%22%3A%22bbb%22%7D%2C%7B%22input%22%3A%22http%3A%2F%2Fcore.local.xdn.com%2Ftest2%22%2C%22id%22%3A%22aaa%22%2C%22pswd%22%3A%22bbb%22%7D%5D%7D
+// http://localhost:8080/mcall/cmd/{"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 func getHandle(w http.ResponseWriter, r *http.Request) {
 	STYPE = r.URL.Query().Get(":type")
 	paramStr := r.URL.Query().Get(":params")
-	fmt.Println(STYPE, paramStr)
+	LOG.Debug(STYPE, paramStr)
 
 	getInput(paramStr)
 	b := makeResponse()
@@ -244,25 +285,20 @@ func postHandle(w http.ResponseWriter, r *http.Request) {
 		LOG.Warning(fmt.Sprintf("bad params received %+v", r.Form["params"]))
 		return
 	}
-	fmt.Println(STYPE, paramStr)
+	LOG.Debug(STYPE, paramStr)
 
 	getInput(paramStr)
-
 	b := makeResponse()
-	fmt.Println(b)
 	io.WriteString(w, string(b))
-	//	io.WriteString(w, "test")
 }
 
 func makeResponse() []byte {
-	res := make(map[string]string)
 	result := mainExec()
 
+	res := make(map[string]string)
 	res["status"] = "OK"
 	res["ts"] = time.Now().String()
 	str, err := json.Marshal(result)
-	fmt.Println(err)
-	fmt.Println(str)
 	res["count"] = strconv.Itoa(len(result) - 1)
 	res["result"] = string(str)
 
@@ -291,10 +327,10 @@ func webserver() {
 		r.Get("/mcall/{type}/{params}", http.HandlerFunc(getHandle))
 		r.Post("/mcall", http.HandlerFunc(postHandle))
 		http.Handle("/", r)
-		LOG.Debug("Listening %s : %s", HTTPHOST, HTTPPORT)
+		LOG.Debug("Listening: ", HTTPHOST, HTTPPORT)
 		err := http.ListenAndServe(HTTPHOST+":"+HTTPPORT, nil)
 		if err != nil {
-			LOG.Fatalf("ListenAndServe: %s", err)
+			LOG.Fatalf("ListenAndServe: ", err)
 		}
 		wg.Done()
 	}()
@@ -309,7 +345,7 @@ func getInput(aInput string) {
 	var data Inputs
 	err := json.Unmarshal([]byte(aInput), &data)
 	if err != nil {
-		fmt.Println("Unmarshal error %s", err)
+		LOG.Panic("Unmarshal error %s", err)
 	}
 	for i := range data.Inputs {
 		input := data.Inputs[i]["input"]
@@ -332,9 +368,7 @@ func main() {
 		// mcall --t=get --i=http://core.local.xdn.com/1/stats/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772^hc_id=1418
 		// mcall --c=/Users/dhong/Documents/workspace/go/src/tz.com/tz_mcall/etc/mcall.cfg
 		allArgs := os.Args[1:]
-		fmt.Println("==== %s", allArgs)
 		////[ argument ]////////////////////////////////////////////////////////////////////////////////
-		web_enble := false
 		for i := range allArgs {
 			str := allArgs[i]
 			key := str[0:strings.Index(str, "=")]
@@ -348,7 +382,7 @@ func main() {
 				CONFIGFILE = val
 			case "--w":
 				if val == "on" {
-					web_enble = true
+					WEBENBLED = true
 				}
 			}
 		}
@@ -362,7 +396,6 @@ func main() {
 			}
 
 			workerNumber, ok := cfg.Get("worker", "number")
-			fmt.Println("workerNumber: ", workerNumber)
 			if !ok {
 				fmt.Println("'file' missing from 'worker", "number")
 			} else {
@@ -370,15 +403,18 @@ func main() {
 			}
 
 			webEnbleStr, ok := cfg.Get("webserver", "enable")
-			fmt.Println("web_enble: ", webEnbleStr)
 			if !ok {
 				fmt.Println("'enable' missing from 'webserver", "enable")
+			} else {
+				if webEnbleStr == "on" {
+					WEBENBLED = true
+				} else {
+					WEBENBLED = false
+				}
 			}
 
-			if webEnbleStr == "on" {
-				web_enble = true
+			if WEBENBLED == true {
 				httpost, ok := cfg.Get("webserver", "host")
-				fmt.Println("httpost: ", httpost)
 				if !ok {
 					fmt.Println("'host' missing from 'webserver", "host")
 				} else {
@@ -386,7 +422,6 @@ func main() {
 				}
 
 				httpport, ok := cfg.Get("webserver", "port")
-				fmt.Println("httpport: ", httpport)
 				if !ok {
 					fmt.Println("'port' missing from 'webserver", "port")
 				} else {
@@ -396,6 +431,10 @@ func main() {
 				input, ok := cfg.Get("request", "input")
 				if !ok {
 					fmt.Println("'input' missing from 'request' section")
+				}
+				stype, _ := cfg.Get("request", "type")
+				if stype != "" {
+					STYPE = stype
 				}
 				getInput(input)
 			}
@@ -429,8 +468,14 @@ func main() {
 		logging.SetBackend(logformatted)
 		logging.SetLevel(GLOGLEVEL, "")
 
+		LOG.Debug("workerNumber: ", WORKERNUM)
+		LOG.Debug("type: ", STYPE)
+		LOG.Debug("webEnabled: ", WEBENBLED)
+		LOG.Debug("httphost: ", HTTPHOST)
+		LOG.Debug("httpport: ", HTTPPORT)
+
 		////[ run app ]////////////////////////////////////////////////////////////////////////////////
-		if web_enble == true {
+		if WEBENBLED == true {
 			webserver()
 		} else {
 			mainExec()
