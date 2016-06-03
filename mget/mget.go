@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/pat"
 	logging "github.com/op/go-logging"
 	"github.com/vaughan0/go-ini"
+	"io"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -50,8 +51,8 @@ type FetchedInput struct {
 	sync.Mutex
 }
 
-type Crawler interface {
-	Crawl()
+type Queryer interface {
+	Query()
 }
 
 type CallFetch struct {
@@ -61,7 +62,7 @@ type CallFetch struct {
 	input        string
 }
 
-func fetch(input string) (string, error) {
+func htmlFetch(input string) (string, error) {
 	if input == "" {
 		return "", nil
 	}
@@ -112,7 +113,7 @@ func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 	return content
 }
 
-func (g *CallFetch) Crawl() {
+func (g *CallFetch) Query() {
 	g.fetchedInput.Lock()
 	if _, ok := g.fetchedInput.m[g.input]; ok {
 		g.fetchedInput.Unlock()
@@ -120,7 +121,7 @@ func (g *CallFetch) Crawl() {
 	}
 	g.fetchedInput.Unlock()
 
-	doc, err := fetch(g.input)
+	doc, err := htmlFetch(g.input)
 	if err != nil {
 		go func(u string) {
 			g.Request(u)
@@ -137,14 +138,14 @@ func (g *CallFetch) Crawl() {
 }
 
 type Pipeline struct {
-	request chan Crawler
+	request chan Queryer
 	done    chan struct{}
 	wg      *sync.WaitGroup
 }
 
 func NewPipeline() *Pipeline {
 	return &Pipeline{
-		request: make(chan Crawler),
+		request: make(chan Queryer),
 		done:    make(chan struct{}),
 		wg:      new(sync.WaitGroup),
 	}
@@ -156,7 +157,7 @@ func (p *Pipeline) Worker() {
 		case <-p.done:
 			return
 		default:
-			r.Crawl()
+			r.Query()
 		}
 	}
 }
@@ -202,6 +203,7 @@ func mainExec() map[string]string {
 		count++
 		countStr := strconv.Itoa(count)
 		result[countStr] = a.content
+		LOG.Debug("==== count: %d", count)
 		if count > len(INPUTS) {
 			close(p.done)
 			break
@@ -213,20 +215,46 @@ func mainExec() map[string]string {
 	return result
 }
 
-// http://localhost:8080/main/core/1418,1419,2502,2694,2932,2933,2695
-// http://localhost:8080/main/graphite/1418,1419,2502,2694,2932,2933,2695
-func mainHandle(w http.ResponseWriter, r *http.Request) {
+// http://localhost:8080/mcall/get/%7B%22inputs%22%3A%5B%7B%22input%22%3A%22http%3A%2F%2Fcore.local.xdn.com%2Ftest1%22%2C%22id%22%3A%22aaa%22%2C%22pswd%22%3A%22bbb%22%7D%2C%7B%22input%22%3A%22http%3A%2F%2Fcore.local.xdn.com%2Ftest2%22%2C%22id%22%3A%22aaa%22%2C%22pswd%22%3A%22bbb%22%7D%5D%7D
+func getHandle(w http.ResponseWriter, r *http.Request) {
 	STYPE = r.URL.Query().Get(":type")
-	hcidStr := r.URL.Query().Get(":hcids")
-	fmt.Println(STYPE, hcidStr)
+	paramStr := r.URL.Query().Get(":params")
+	fmt.Println(STYPE, paramStr)
 
-	INPUTS = []string{}
-	INPUTS = strings.Split(hcidStr, ",")
-	//	arry := strings.Split(hcidStr, ",")
-	//	for i := range arry {
-	//		INPUTS = append(INPUTS, arry[i])
-	//	}
+	getInput(paramStr)
+	b := makeResponse()
+	w.Write(b)
+}
 
+// http://localhost:8080/mcall?type=post&params={"inputs":[{"input":"http://core.local.xdn.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://core.local.xdn.com/test2","id":"aaa","pswd":"bbb"}]}
+func postHandle(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		LOG.Debugf("ParseForm %s", err)
+	}
+	LOG.Debugf("\n what we got was %+v\n", r.Form)
+
+	if STYPE = r.FormValue("type"); STYPE == "" {
+		LOG.Warning(fmt.Sprintf("bad STYPE received %+v", r.Form["type"]))
+		return
+	}
+
+	var paramStr = ""
+	if paramStr = r.FormValue("params"); paramStr == "" {
+		LOG.Warning(fmt.Sprintf("bad params received %+v", r.Form["params"]))
+		return
+	}
+	fmt.Println(STYPE, paramStr)
+
+	getInput(paramStr)
+
+	b := makeResponse()
+	fmt.Println(b)
+	io.WriteString(w, string(b))
+	//	io.WriteString(w, "test")
+}
+
+func makeResponse() []byte {
 	res := make(map[string]string)
 	result := mainExec()
 
@@ -242,8 +270,7 @@ func mainHandle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		LOG.Errorf("error: %s", err)
 	}
-	w.Write(b)
-	return
+	return b
 }
 
 func webserver() {
@@ -261,7 +288,8 @@ func webserver() {
 	wg.Add(1)
 	go func() {
 		r := pat.New()
-		r.Get("/main/{type}/{hcids}", http.HandlerFunc(mainHandle))
+		r.Get("/mcall/{type}/{params}", http.HandlerFunc(getHandle))
+		r.Post("/mcall", http.HandlerFunc(postHandle))
 		http.Handle("/", r)
 		LOG.Debug("Listening %s : %s", HTTPHOST, HTTPPORT)
 		err := http.ListenAndServe(HTTPHOST+":"+HTTPPORT, nil)
@@ -272,6 +300,21 @@ func webserver() {
 	}()
 
 	wg.Wait()
+}
+
+func getInput(aInput string) {
+	type Inputs struct {
+		Inputs []map[string]interface{} `json:"inputs"`
+	}
+	var data Inputs
+	err := json.Unmarshal([]byte(aInput), &data)
+	if err != nil {
+		fmt.Println("Unmarshal error %s", err)
+	}
+	for i := range data.Inputs {
+		input := data.Inputs[i]["input"]
+		INPUTS = append(INPUTS, input.(string))
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +331,6 @@ func main() {
 	} else {
 		// mcall --t=get --i=http://core.local.xdn.com/1/stats/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772^hc_id=1418
 		// mcall --c=/Users/dhong/Documents/workspace/go/src/tz.com/tz_mcall/etc/mcall.cfg
-
 		allArgs := os.Args[1:]
 		fmt.Println("==== %s", allArgs)
 		////[ argument ]////////////////////////////////////////////////////////////////////////////////
@@ -316,28 +358,11 @@ func main() {
 		if CONFIGFILE != "" {
 			cfg, err := ini.LoadFile(CONFIGFILE)
 			if err != nil {
-				fmt.Println("parse config "+CONFIGFILE+" file error: %s", err)
-			}
-
-			input, ok := cfg.Get("request", "input")
-			if !ok {
-				fmt.Println("'input' missing from 'request' section")
-			}
-			type Inputs struct {
-				Inputs []map[string]interface{} `json:"urls"`
-			}
-			var data Inputs
-			err = json.Unmarshal([]byte(input), &data)
-			if err != nil {
-				fmt.Println("Unmarshal error %s", err)
-			}
-			for i := range data.Inputs {
-				url := data.Inputs[i]["url"]
-				INPUTS = append(INPUTS, url.(string))
+				fmt.Println("parse config "+CONFIGFILE+" file error: ", err)
 			}
 
 			workerNumber, ok := cfg.Get("worker", "number")
-			fmt.Println("workerNumber : %s", workerNumber)
+			fmt.Println("workerNumber: ", workerNumber)
 			if !ok {
 				fmt.Println("'file' missing from 'worker", "number")
 			} else {
@@ -345,7 +370,7 @@ func main() {
 			}
 
 			webEnbleStr, ok := cfg.Get("webserver", "enable")
-			fmt.Println("web_enble : %s", webEnbleStr)
+			fmt.Println("web_enble: ", webEnbleStr)
 			if !ok {
 				fmt.Println("'enable' missing from 'webserver", "enable")
 			}
@@ -353,7 +378,7 @@ func main() {
 			if webEnbleStr == "on" {
 				web_enble = true
 				httpost, ok := cfg.Get("webserver", "host")
-				fmt.Println("httpost : %s", httpost)
+				fmt.Println("httpost: ", httpost)
 				if !ok {
 					fmt.Println("'host' missing from 'webserver", "host")
 				} else {
@@ -361,14 +386,19 @@ func main() {
 				}
 
 				httpport, ok := cfg.Get("webserver", "port")
-				fmt.Println("httpport : %s", httpport)
+				fmt.Println("httpport: ", httpport)
 				if !ok {
 					fmt.Println("'port' missing from 'webserver", "port")
 				} else {
 					HTTPPORT = httpport
 				}
+			} else {
+				input, ok := cfg.Get("request", "input")
+				if !ok {
+					fmt.Println("'input' missing from 'request' section")
+				}
+				getInput(input)
 			}
-
 		}
 
 		////[ log file ]////////////////////////////////////////////////////////////////////////////////
