@@ -2,14 +2,14 @@
 
 Concurrence with golang for multiple request (HTTP) or shell command.
 
-1. install
+-. install
 ```
 	- glide
 		https://github.com/Masterminds/glide
 	- ~/tz_mcall> glide up
 ```
 	
-2. run:
+-. run:
 ```
 	- case 1: write result on a log file
 		mcall --t=get --i=http://www.google.com/test1
@@ -23,7 +23,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		open brower and call with url, like http://localhost:8080/mcall/get/${params}
 ```
 
-3. paramters: 
+-. paramters: 
 ```
 	--t: request type ex) get, post, cmd
 	--i: request url or command, it can be multiple with comma. 
