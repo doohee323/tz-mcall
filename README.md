@@ -10,14 +10,14 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 2. run:
 	- case 1: write result on a log file
 		mcall --t=get --i=http://www.google.com/test1
-		vi $PWD/tz_mcall.log
+		vi $PWD/mcall.log
 		
 	- case 2: use configration file
-		mcall --c=etc/mcall.cfg
+		mcall --c=/etc/mcall/mcall.cfg
 		
 	- case 3: write result on web
-		mcall --t=get -w=on
-		open brower and call with http://localhost:8080/mcall/${params}
+		mcall --w=on
+		open brower and call with url, like http://localhost:8080/mcall/get/${params}
 
 3. paramters: 
 	--t: request type ex) get, post, cmd
