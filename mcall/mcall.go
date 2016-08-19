@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/gorilla/pat"
 	logging "github.com/op/go-logging"
@@ -367,33 +368,32 @@ func main() {
 		fmt.Println("No parameter!")
 		return
 	} else {
-		// mcall --t=get --i=http://core.local.xdn.com/1/stats/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772^hc_id=1418
-		// mcall --c=/Users/dhong/Documents/workspace/go/src/tz.com/tz_mcall/etc/mcall.cfg
-		allArgs := os.Args[1:]
 		////[ argument ]////////////////////////////////////////////////////////////////////////////////
-		for i := range allArgs {
-			str := allArgs[i]
-			key := str[0:strings.Index(str, "=")]
-			val := str[strings.Index(str, "=")+1 : len(str)]
-			switch key {
-			case "--t":
-				STYPE = val
-			case "--i":
-				INPUTS = append(INPUTS, val)
-			case "--c":
-				CONFIGFILE = val
-			case "--w":
-				if val == "on" {
-					WEBENBLED = true
-				}
-			}
-		}
-		if STYPE == "" {
-			STYPE = "cmd"
-		}
+		var (
+			help = flag.Bool("help", false, "Show these options")
+			vt   = flag.String("t", "cmd", "Type")
+			vi   = flag.String("i", "", "input")
+			vc   = flag.String("c", "", "configuration file path")
+			vw   = flag.Bool("w", false, "run webserver")
+			vp   = flag.String("p", "8080", "webserver port")
+			//			vf   = flag.String("f", "json", "return format")
+			vlf = flag.String("logfile", "/var/log/scanner/fnmap.log", "Logfile destination. STDOUT | STDERR or file path")
+			vll = flag.String("loglevel", "DEBUG", "Loglevel CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG")
+		)
+		flag.Parse()
 
-		logfile := "/var/log/mcall/mcall.log"
-		loglevel := "DEBUG"
+		if *help {
+			flag.PrintDefaults()
+			os.Exit(1)
+		}
+		STYPE = *vt
+		INPUTS = append(INPUTS, *vi)
+		CONFIGFILE = *vc
+		WEBENBLED = *vw
+		HTTPPORT = *vp
+		logfile := *vlf
+		loglevel := *vll
+
 		////[ configuratin file ]////////////////////////////////////////////////////////////////////////////////
 		if CONFIGFILE != "" {
 			cfg, err := ini.LoadFile(CONFIGFILE)
