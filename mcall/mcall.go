@@ -357,9 +357,9 @@ func getInput(aInput string) {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 // 2 ways of run
-// - 1st: mget web
+// - 1st: mcall web
 // 		call from brower: http://localhost:8080/main/core/1418,1419,2502,2694,2932,2933,2695
-// - 2nd: mget core/graphite 1418,1419,2502,2694,2932,2933,2695
+// - 2nd: mcall core/graphite 1418,1419,2502,2694,2932,2933,2695
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 func main() {
 
@@ -452,7 +452,7 @@ func main() {
 		////[ log file ]////////////////////////////////////////////////////////////////////////////////
 		if _, err := os.Stat(logfile); err != nil {
 			logfile, _ := os.Getwd()
-			logfile = logfile + "/mget.log"
+			logfile = logfile + "/mcall.log"
 		}
 
 		LOGFILE, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
