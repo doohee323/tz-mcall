@@ -23,14 +23,11 @@ import (
 )
 
 var (
-	INPUTS []string
-	STYPE  string
-)
-
-var (
-	cfg        ini.File
+	CFG        ini.File
 	CONFIGFILE string
 	WORKERNUM  = 10
+	INPUTS []string
+	STYPE  string
 	WEBENBLED  = false
 	HTTPHOST   = "localhost"
 	HTTPPORT   = "8080"
@@ -54,11 +51,11 @@ type FetchedInput struct {
 	sync.Mutex
 }
 
-type commander interface {
+type Commander interface {
 	command()
 }
 
-type callFetch struct {
+type CallFetch struct {
 	fetchedInput *FetchedInput
 	p            *Pipeline
 	result       chan FetchedResult
@@ -116,8 +113,8 @@ func exeCmd(cmd string) (string, error) {
 	return string(out), err
 }
 
-func (g *callFetch) request(input string) {
-	g.p.request <- &callFetch{
+func (g *CallFetch) request(input string) {
+	g.p.request <- &CallFetch{
 		fetchedInput: g.fetchedInput,
 		p:            g.p,
 		result:       g.result,
@@ -125,7 +122,7 @@ func (g *callFetch) request(input string) {
 	}
 }
 
-func (g *callFetch) parseContent(input string, doc string) <-chan string {
+func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 	content := make(chan string)
 	go func() {
 		content <- doc
@@ -147,7 +144,7 @@ func (g *callFetch) parseContent(input string, doc string) <-chan string {
 	return content
 }
 
-func (g *callFetch) command() {
+func (g *CallFetch) command() {
 	g.fetchedInput.Lock()
 	if _, ok := g.fetchedInput.m[g.input]; ok {
 		g.fetchedInput.Unlock()
@@ -186,14 +183,14 @@ func (g *callFetch) command() {
 }
 
 type Pipeline struct {
-	request chan commander
+	request chan Commander
 	done    chan struct{}
 	wg      *sync.WaitGroup
 }
 
 func NewPipeline() *Pipeline {
 	return &Pipeline{
-		request: make(chan commander),
+		request: make(chan Commander),
 		done:    make(chan struct{}),
 		wg:      new(sync.WaitGroup),
 	}
@@ -232,7 +229,7 @@ func mainExec() map[string]string {
 	p := NewPipeline()
 	p.Run()
 
-	call := &callFetch{
+	call := &CallFetch{
 		fetchedInput: &FetchedInput{m: make(map[string]error)},
 		p:            p,
 		result:       make(chan FetchedResult),
@@ -396,22 +393,22 @@ func main() {
 
 		////[ configuratin file ]////////////////////////////////////////////////////////////////////////////////
 		if CONFIGFILE != "" {
-			cfg, err := ini.LoadFile(CONFIGFILE)
+			CFG, err := ini.LoadFile(CONFIGFILE)
 			if err != nil {
 				fmt.Println("parse config "+CONFIGFILE+" file error: ", err)
 			}
 
-			loglevel, _ = cfg.Get("log", "level")
-			logfile, _ = cfg.Get("log", "file")
+			loglevel, _ = CFG.Get("log", "level")
+			logfile, _ = CFG.Get("log", "file")
 
-			workerNumber, ok := cfg.Get("worker", "number")
+			workerNumber, ok := CFG.Get("worker", "number")
 			if !ok {
 				fmt.Println("'file' missing from 'worker", "number")
 			} else {
 				WORKERNUM, _ = strconv.Atoi(workerNumber)
 			}
 
-			webEnbleStr, ok := cfg.Get("webserver", "enable")
+			webEnbleStr, ok := CFG.Get("webserver", "enable")
 			if !ok {
 				fmt.Println("'enable' missing from 'webserver", "enable")
 			} else {
@@ -423,25 +420,25 @@ func main() {
 			}
 
 			if WEBENBLED == true {
-				httpost, ok := cfg.Get("webserver", "host")
+				httpost, ok := CFG.Get("webserver", "host")
 				if !ok {
 					fmt.Println("'host' missing from 'webserver", "host")
 				} else {
 					HTTPHOST = httpost
 				}
 
-				httpport, ok := cfg.Get("webserver", "port")
+				httpport, ok := CFG.Get("webserver", "port")
 				if !ok {
 					fmt.Println("'port' missing from 'webserver", "port")
 				} else {
 					HTTPPORT = httpport
 				}
 			} else {
-				input, ok := cfg.Get("request", "input")
+				input, ok := CFG.Get("request", "input")
 				if !ok {
 					fmt.Println("'input' missing from 'request' section")
 				}
-				stype, _ := cfg.Get("request", "type")
+				stype, _ := CFG.Get("request", "type")
 				if stype != "" {
 					STYPE = stype
 				}
