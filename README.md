@@ -11,21 +11,30 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	
 -. run:
 ```
-	- case 1: write result on a log file
+	- case 1: run command
+		mcall --i="ls -al"
 		mcall --t=get --i=http://www.google.com/test1
-		vi $PWD/mcall.log
 		
 	- case 2: use configration file
+		vi /tz_mcall/etc/mcall.cfg
+		[request]
+		type=cmd
+		input={"inputs":[{"input":"ls -al"},{"input":"ls"}]}
+	
 		mcall --c=/etc/mcall/mcall.cfg
 		
 	- case 3: write result on web
 		mcall --w=on
 		open brower and call with url, like http://localhost:8080/mcall/get/${params}
+		ex) 
+		http://localhost:8080/mcall/cmd/{"inputs":[{"input":"ls -al"},{"input":"ls"}]}
+		http://localhost:8080/mcall/get/{"inputs":[{"input":"http://localhost:8080/test1","id":"aaa","pswd":"bbb"},{"input":"http://localhost:8080/test2","id":"aaa","pswd":"bbb"}]}
+				
 ```
 
 -. paramters: 
 ```
-	--t: request type ex) get, post, cmd
+	--t: request type ex) get, post, cmd, default: cmd
 	--i: request url or command, it can be multiple with comma. 
 		ex) http://www.google.com/test, ls -al
 			http://www.google.com/test1, http://www.google.com/test2
@@ -36,4 +45,5 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	--l: log level ex) debug, info, error, default: debug
 	--lf: log file ex) /var/log/tz_mcall/tz_mcall.log, default: pwd
 	--c: configration file ex) /etc/tz_mcall/tz_mcall.conf, default: none
+	
 ```

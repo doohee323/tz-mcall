@@ -53,18 +53,18 @@ type FetchedInput struct {
 	sync.Mutex
 }
 
-type Commander interface {
+type commander interface {
 	command()
 }
 
-type CallFetch struct {
+type callFetch struct {
 	fetchedInput *FetchedInput
 	p            *Pipeline
 	result       chan FetchedResult
 	input        string
 }
 
-func htmlFetch(input string) (string, error) {
+func fetchHtml(input string) (string, error) {
 	if input == "" {
 		return "", nil
 	}
@@ -86,11 +86,12 @@ func htmlFetch(input string) (string, error) {
 	return string(doc), nil
 }
 
-func cmdFetch(input string) (string, error) {
+func fetchCmd(input string) (string, error) {
 	if input == "" {
 		return "", nil
 	}
 
+	LOG.Debug("==============================================================")
 	LOG.Debug("= input: ", input)
 	doc, err := exeCmd(input)
 	if err != nil {
@@ -98,6 +99,7 @@ func cmdFetch(input string) (string, error) {
 		return "", err
 	} else {
 		LOG.Debug(doc)
+		fmt.Printf("%s", doc)
 	}
 	return string(doc), nil
 }
@@ -113,8 +115,8 @@ func exeCmd(cmd string) (string, error) {
 	return string(out), err
 }
 
-func (g *CallFetch) request(input string) {
-	g.p.request <- &CallFetch{
+func (g *callFetch) request(input string) {
+	g.p.request <- &callFetch{
 		fetchedInput: g.fetchedInput,
 		p:            g.p,
 		result:       g.result,
@@ -122,7 +124,7 @@ func (g *CallFetch) request(input string) {
 	}
 }
 
-func (g *CallFetch) parseContent(input string, doc string) <-chan string {
+func (g *callFetch) parseContent(input string, doc string) <-chan string {
 	content := make(chan string)
 	go func() {
 		content <- doc
@@ -144,7 +146,7 @@ func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 	return content
 }
 
-func (g *CallFetch) command() {
+func (g *callFetch) command() {
 	g.fetchedInput.Lock()
 	if _, ok := g.fetchedInput.m[g.input]; ok {
 		g.fetchedInput.Unlock()
@@ -156,7 +158,7 @@ func (g *CallFetch) command() {
 	var err error
 	if g.input != "" {
 		if STYPE == "cmd" {
-			doc, err = cmdFetch(g.input)
+			doc, err = fetchCmd(g.input)
 			if err != nil {
 				go func(u string) {
 					g.request(u)
@@ -164,7 +166,7 @@ func (g *CallFetch) command() {
 				return
 			}
 		} else {
-			doc, err = htmlFetch(g.input)
+			doc, err = fetchHtml(g.input)
 			if err != nil {
 				go func(u string) {
 					g.request(u)
@@ -183,14 +185,14 @@ func (g *CallFetch) command() {
 }
 
 type Pipeline struct {
-	request chan Commander
+	request chan commander
 	done    chan struct{}
 	wg      *sync.WaitGroup
 }
 
 func NewPipeline() *Pipeline {
 	return &Pipeline{
-		request: make(chan Commander),
+		request: make(chan commander),
 		done:    make(chan struct{}),
 		wg:      new(sync.WaitGroup),
 	}
@@ -229,7 +231,7 @@ func mainExec() map[string]string {
 	p := NewPipeline()
 	p.Run()
 
-	call := &CallFetch{
+	call := &callFetch{
 		fetchedInput: &FetchedInput{m: make(map[string]error)},
 		p:            p,
 		result:       make(chan FetchedResult),
@@ -354,7 +356,7 @@ func getInput(aInput string) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-// 2way of run
+// 2 ways of run
 // - 1st: mget web
 // 		call from brower: http://localhost:8080/main/core/1418,1419,2502,2694,2932,2933,2695
 // - 2nd: mget core/graphite 1418,1419,2502,2694,2932,2933,2695
@@ -386,14 +388,21 @@ func main() {
 				}
 			}
 		}
+		if STYPE == "" {
+			STYPE = "cmd"
+		}
 
+		logfile := "/var/log/mcall/mcall.log"
+		loglevel := "DEBUG"
 		////[ configuratin file ]////////////////////////////////////////////////////////////////////////////////
-		var logfile = ""
 		if CONFIGFILE != "" {
 			cfg, err := ini.LoadFile(CONFIGFILE)
 			if err != nil {
 				fmt.Println("parse config "+CONFIGFILE+" file error: ", err)
 			}
+
+			loglevel, _ = cfg.Get("log", "level")
+			logfile, _ = cfg.Get("log", "file")
 
 			workerNumber, ok := cfg.Get("worker", "number")
 			if !ok {
@@ -441,9 +450,6 @@ func main() {
 		}
 
 		////[ log file ]////////////////////////////////////////////////////////////////////////////////
-		if logfile == "" {
-			logfile = "/var/log/mcall/mcall.log"
-		}
 		if _, err := os.Stat(logfile); err != nil {
 			logfile, _ := os.Getwd()
 			logfile = logfile + "/mget.log"
@@ -460,7 +466,6 @@ func main() {
 
 		logback := logging.NewLogBackend(LOGFILE, "", 0)
 		logformatted := logging.NewBackendFormatter(logback, LOGFORMAT)
-		loglevel := "DEBUG"
 		GLOGLEVEL, err := logging.LogLevel(loglevel)
 		if err != nil {
 			GLOGLEVEL = logging.DEBUG
