@@ -1,8 +1,8 @@
 package: tz.com/tz_mcall
 import:
-- package: github.com/marpaia/graphite-golang
 - package: github.com/op/go-logging
+- package: github.com/gorilla/pat
 - package: github.com/vaughan0/go-ini
-- package: github.com/marpaia/graphite-golang
 - package: github.com/stretchr/testify
 - package: golang.org/x/net/html
+- package: github.com/stretchr/testify/assert

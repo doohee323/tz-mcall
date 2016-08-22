@@ -26,9 +26,9 @@ var (
 	CFG        ini.File
 	CONFIGFILE string
 	WORKERNUM  = 10
-	INPUTS []string
-	STYPE  string
-	WEBENBLED  = false
+	INPUTS     []string
+	STYPE      string
+	WEBENABLED = false
 	HTTPHOST   = "localhost"
 	HTTPPORT   = "8080"
 )
@@ -39,6 +39,8 @@ var (
 	LOGFORMAT               = logging.MustStringFormatter(LOGFMT)
 	LOG                     = logging.MustGetLogger("logfile")
 	GLOGLEVEL logging.Level = logging.DEBUG
+	logfile   string
+	loglevel  string
 )
 
 type FetchedResult struct {
@@ -221,7 +223,7 @@ func (p *Pipeline) Run() {
 	}()
 }
 
-func mainExec() map[string]string {
+func execCmd() map[string]string {
 	start := time.Now()
 	numCPUs := runtime.NumCPU()
 	runtime.GOMAXPROCS(numCPUs)
@@ -293,7 +295,7 @@ func postHandle(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeResponse() []byte {
-	result := mainExec()
+	result := execCmd()
 
 	res := make(map[string]string)
 	res["status"] = "OK"
@@ -360,127 +362,166 @@ func getInput(aInput string) {
 // - 2nd: mcall core/graphite 1418,1419,2502,2694,2932,2933,2695
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 func main() {
-
 	if len(os.Args) < 2 {
 		fmt.Println("No parameter!")
 		return
+	}
+
+	////[ argument ]////////////////////////////////////////////////////////////////////////////////
+	var (
+		help = flag.Bool("help", false, "Show these options")
+		vt   = flag.String("t", "cmd", "Type")
+		vi   = flag.String("i", "", "input")
+		vc   = flag.String("c", "", "configuration file path")
+		vw   = flag.Bool("w", false, "run webserver")
+		vp   = flag.String("p", "8080", "webserver port")
+		//			vf   = flag.String("f", "json", "return format")
+		vlf = flag.String("logfile", "/var/log/mcall/mcall.log", "Logfile destination. STDOUT | STDERR or file path")
+		vll = flag.String("loglevel", "DEBUG", "Loglevel CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG")
+	)
+	flag.Parse()
+	var args = Args{"help": *help, "t": *vt, "i": *vi, "c": *vc, "w": *vw, "vp": *vp, "logfile": *vlf, "loglevel": *vll}
+	mainExec(args)
+}
+
+type Args map[string]interface{}
+
+func mainExec(args Args) map[string]string {
+	var rslt = map[string]string{}
+	var (
+		help = args["help"]
+		vt   = args["t"]
+		vi   = args["i"]
+		vc   = args["c"]
+		vw   = args["w"]
+		vp   = args["p"]
+		//			vf   = args["f"]
+		vlf = args["logfile"]
+		vll = args["loglevel"]
+	)
+
+	if help == true {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+	if vt != nil {
+		STYPE = vt.(string)
 	} else {
-		////[ argument ]////////////////////////////////////////////////////////////////////////////////
-		var (
-			help = flag.Bool("help", false, "Show these options")
-			vt   = flag.String("t", "cmd", "Type")
-			vi   = flag.String("i", "", "input")
-			vc   = flag.String("c", "", "configuration file path")
-			vw   = flag.Bool("w", false, "run webserver")
-			vp   = flag.String("p", "8080", "webserver port")
-			//			vf   = flag.String("f", "json", "return format")
-			vlf = flag.String("logfile", "/var/log/scanner/fnmap.log", "Logfile destination. STDOUT | STDERR or file path")
-			vll = flag.String("loglevel", "DEBUG", "Loglevel CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG")
-		)
-		flag.Parse()
+		STYPE = "cmd"
+	}
+	if vi != nil {
+		INPUTS = append(INPUTS, vi.(string))
+	}
+	if vt != nil {
+		CONFIGFILE = vc.(string)
+	}
+	if vw != nil {
+		WEBENABLED = vw.(bool)
+	}
+	if vp != nil {
+		HTTPPORT = vp.(string)
+	} else {
+		HTTPPORT = "8080"
+	}
+	if vlf != nil {
+		logfile = vlf.(string)
+	}
+	if vll != nil {
+		loglevel = vll.(string)
+	} else {
+		loglevel = "DEBUG"
+	}
 
-		if *help {
-			flag.PrintDefaults()
-			os.Exit(1)
-		}
-		STYPE = *vt
-		INPUTS = append(INPUTS, *vi)
-		CONFIGFILE = *vc
-		WEBENBLED = *vw
-		HTTPPORT = *vp
-		logfile := *vlf
-		loglevel := *vll
-
-		////[ configuratin file ]////////////////////////////////////////////////////////////////////////////////
-		if CONFIGFILE != "" {
-			CFG, err := ini.LoadFile(CONFIGFILE)
-			if err != nil {
-				fmt.Println("parse config "+CONFIGFILE+" file error: ", err)
-			}
-
-			loglevel, _ = CFG.Get("log", "level")
-			logfile, _ = CFG.Get("log", "file")
-
-			workerNumber, ok := CFG.Get("worker", "number")
-			if !ok {
-				fmt.Println("'file' missing from 'worker", "number")
-			} else {
-				WORKERNUM, _ = strconv.Atoi(workerNumber)
-			}
-
-			webEnbleStr, ok := CFG.Get("webserver", "enable")
-			if !ok {
-				fmt.Println("'enable' missing from 'webserver", "enable")
-			} else {
-				if webEnbleStr == "on" {
-					WEBENBLED = true
-				} else {
-					WEBENBLED = false
-				}
-			}
-
-			if WEBENBLED == true {
-				httpost, ok := CFG.Get("webserver", "host")
-				if !ok {
-					fmt.Println("'host' missing from 'webserver", "host")
-				} else {
-					HTTPHOST = httpost
-				}
-
-				httpport, ok := CFG.Get("webserver", "port")
-				if !ok {
-					fmt.Println("'port' missing from 'webserver", "port")
-				} else {
-					HTTPPORT = httpport
-				}
-			} else {
-				input, ok := CFG.Get("request", "input")
-				if !ok {
-					fmt.Println("'input' missing from 'request' section")
-				}
-				stype, _ := CFG.Get("request", "type")
-				if stype != "" {
-					STYPE = stype
-				}
-				getInput(input)
-			}
-		}
-
-		////[ log file ]////////////////////////////////////////////////////////////////////////////////
-		if _, err := os.Stat(logfile); err != nil {
-			logfile, _ := os.Getwd()
-			logfile = logfile + "/mcall.log"
-		}
-
-		LOGFILE, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	////[ configuratin file ]////////////////////////////////////////////////////////////////////////////////
+	if CONFIGFILE != "" {
+		CFG, err := ini.LoadFile(CONFIGFILE)
 		if err != nil {
-			LOG.Fatalf("Log file error: %s %s", logfile, err)
+			fmt.Println("parse config "+CONFIGFILE+" file error: ", err)
 		}
-		defer func() {
-			LOGFILE.WriteString(fmt.Sprintf("closing %s", time.UnixDate))
-			LOGFILE.Close()
-		}()
 
-		logback := logging.NewLogBackend(LOGFILE, "", 0)
-		logformatted := logging.NewBackendFormatter(logback, LOGFORMAT)
-		GLOGLEVEL, err := logging.LogLevel(loglevel)
-		if err != nil {
-			GLOGLEVEL = logging.DEBUG
-		}
-		logging.SetBackend(logformatted)
-		logging.SetLevel(GLOGLEVEL, "")
+		loglevel, _ = CFG.Get("log", "level")
+		logfile, _ = CFG.Get("log", "file")
 
-		LOG.Debug("workerNumber: ", WORKERNUM)
-		LOG.Debug("type: ", STYPE)
-		LOG.Debug("webEnabled: ", WEBENBLED)
-		LOG.Debug("httphost: ", HTTPHOST)
-		LOG.Debug("httpport: ", HTTPPORT)
-
-		////[ run app ]////////////////////////////////////////////////////////////////////////////////
-		if WEBENBLED == true {
-			webserver()
+		workerNumber, ok := CFG.Get("worker", "number")
+		if !ok {
+			fmt.Println("'file' missing from 'worker", "number")
 		} else {
-			mainExec()
+			WORKERNUM, _ = strconv.Atoi(workerNumber)
+		}
+
+		webEnbleStr, ok := CFG.Get("webserver", "enable")
+		if !ok {
+			fmt.Println("'enable' missing from 'webserver", "enable")
+		} else {
+			if webEnbleStr == "false" {
+				WEBENABLED = true
+			} else {
+				WEBENABLED = false
+			}
+		}
+
+		if WEBENABLED == true {
+			httpost, ok := CFG.Get("webserver", "host")
+			if !ok {
+				fmt.Println("'host' missing from 'webserver", "host")
+			} else {
+				HTTPHOST = httpost
+			}
+
+			httpport, ok := CFG.Get("webserver", "port")
+			if !ok {
+				fmt.Println("'port' missing from 'webserver", "port")
+			} else {
+				HTTPPORT = httpport
+			}
+		} else {
+			input, ok := CFG.Get("request", "input")
+			if !ok {
+				fmt.Println("'input' missing from 'request' section")
+			}
+			stype, _ := CFG.Get("request", "type")
+			if stype != "" {
+				STYPE = stype
+			}
+			getInput(input)
 		}
 	}
+
+	////[ log file ]////////////////////////////////////////////////////////////////////////////////
+	if _, err := os.Stat(logfile); err != nil {
+		logfile, _ = os.Getwd()
+		logfile = logfile + "/mcall.log"
+	}
+
+	LOGFILE, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		LOG.Fatalf("Log file error: %s %s", logfile, err)
+	}
+	defer func() {
+		LOGFILE.WriteString(fmt.Sprintf("closing %s", time.UnixDate))
+		LOGFILE.Close()
+	}()
+
+	logback := logging.NewLogBackend(LOGFILE, "", 0)
+	logformatted := logging.NewBackendFormatter(logback, LOGFORMAT)
+	GLOGLEVEL, err := logging.LogLevel(loglevel)
+	if err != nil {
+		GLOGLEVEL = logging.DEBUG
+	}
+	logging.SetBackend(logformatted)
+	logging.SetLevel(GLOGLEVEL, "")
+
+	LOG.Debug("workerNumber: ", WORKERNUM)
+	LOG.Debug("type: ", STYPE)
+	LOG.Debug("webEnabled: ", WEBENABLED)
+	LOG.Debug("httphost: ", HTTPHOST)
+	LOG.Debug("httpport: ", HTTPPORT)
+
+	////[ run app ]////////////////////////////////////////////////////////////////////////////////
+	if WEBENABLED == true {
+		webserver()
+	} else {
+		rslt = execCmd()
+	}
+	return rslt
 }
