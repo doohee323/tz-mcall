@@ -1,4 +1,8 @@
-package: tz.com/tz_mcall
+package: github.com/doohee323/tz_mcall
+owners:
+- name: Dewey Hong
+  email: doohee323@gmail.com
+  homepage: http://topzone.biz/
 import:
 - package: github.com/op/go-logging
 - package: github.com/gorilla/pat

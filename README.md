@@ -48,3 +48,9 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	-c: configration file ex) /etc/tz_mcall/tz_mcall.conf, default: none
 	
 ```
+
+-. to use:
+```
+	go get -u github.com/doohee323/tz_mcall/mcall
+```
+	
