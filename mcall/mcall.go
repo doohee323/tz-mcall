@@ -112,6 +112,7 @@ func exeCmd(cmd string) (string, error) {
 	LOG.Debug("= parts: ", parts)
 	out, err := exec.Command(head, parts...).Output()
 	if err != nil {
+		LOG.Debug("= exec.Command error: ", err)
 		return "", err
 	}
 	return string(out), err
