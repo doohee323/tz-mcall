@@ -107,7 +107,9 @@ func fetchCmd(input string) (string, error) {
 func exeCmd(cmd string) (string, error) {
 	parts := strings.Fields(cmd)
 	head := parts[0]
+	LOG.Debug("= head: ", head)
 	parts = parts[1:len(parts)]
+	LOG.Debug("= parts: ", parts)
 	out, err := exec.Command(head, parts...).Output()
 	if err != nil {
 		return "", err
