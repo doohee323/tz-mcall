@@ -162,9 +162,9 @@ loop:
 		case cmdresult := <-resultchan:
 			if cmdresult != "" {
 				res.Raw = cmdresult
-				LOG.Debug("= res.Raw: ", res.Raw)
 				break loop
 			}
+			LOG.Debug("= cmdresult: ", cmdresult)
 		}
 	}
 
