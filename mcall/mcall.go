@@ -111,10 +111,10 @@ func exeCmd(cmd string) (string, error) {
 	LOG.Debug("= head: ", head)
 	parts = parts[1:len(parts)]
 	LOG.Debug("= parts: ", parts)
-	cmd := exec.Command(head, parts...)
+	cmd2 := exec.Command(head, parts...)
 	var out bytes.Buffer
-	cmd.Stdout = &out
-	err = cmd.Run()
+	cmd2.Stdout = &out
+	err = cmd2.Run()
 	fmt.Printf("%s\n", out.String())
 	if err != nil {
 		LOG.Debug("= exec.Command error: ", err)
