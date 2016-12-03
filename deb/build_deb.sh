@@ -1,3 +1,5 @@
+sudo apt-get install runit -y
+
 cd ..
 
 chmod 775 deb/pkg-build/DEBIAN/postinst
