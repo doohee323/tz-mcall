@@ -114,7 +114,7 @@ func exeCmd(cmd string) (string, error) {
 	cmd2 := exec.Command(head, parts...)
 	var out bytes.Buffer
 	cmd2.Stdout = &out
-	err = cmd2.Run()
+	err := cmd2.Run()
 	fmt.Printf("%s\n", out.String())
 	if err != nil {
 		LOG.Debug("= exec.Command error: ", err)
