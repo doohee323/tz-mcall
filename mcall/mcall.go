@@ -20,6 +20,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"bytes"
 )
 
 var (
