@@ -7,6 +7,16 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	- glide
 		cf. https://github.com/Masterminds/glide
 	- ~/tz_mcall> glide up
+	
+	# It contains as below
+		go get github.com/op/go-logging
+		go get github.com/gorilla/pat
+		go get github.com/gorilla/mux
+		go get github.com/vaughan0/go-ini
+		go get github.com/stretchr/testify
+		go get golang.org/x/net/html
+		go get github.com/stretchr/testify/assert
+	
 ```
 	
 -. run:
@@ -25,7 +35,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		mcall -c=/etc/mcall/mcall.cfg
 		
 	- case 3: write result on web
-		mcall -w=on
+		mcall -w=true
 		open brower and call with url, like http://localhost:8080/mcall/get/${params}
 		ex) 
 		http://localhost:8080/mcall/cmd/{"inputs":[{"input":"ls -al"},{"input":"ls"}]}

@@ -241,13 +241,13 @@ func execCmd() map[string]string {
 
 	result := make(map[string]string)
 	count := 0
-	LOG.Debug("len(INPUTS): ", len(INPUTS))
+	LOG.Debug("============ len(INPUTS): ", len(INPUTS))
 	for a := range call.result {
 		count++
 		countStr := strconv.Itoa(count)
 		result[countStr] = a.content
-		LOG.Debug("count: ", count)
-		if count > len(INPUTS) {
+		LOG.Debug("============ count: ", count)
+		if count >= len(INPUTS) {
 			close(p.done)
 			break
 		}
