@@ -152,13 +152,16 @@ loop:
 		case <-time.After(time.Duration(360) * time.Second):
 			cmd.Process.Kill()
 			res.Error = "Runner: timedout"
+			LOG.Debug("= res.Error1: ", res.Error)
 			break loop
 
 		case err := <-errchan:
 			res.Error = fmt.Sprintf("Runner: %s", err.Error())
+			LOG.Debug("= res.Error2: ", res.Error)
 			break loop
 		case cmdresult := <-resultchan:
 			res.Raw = cmdresult
+			LOG.Debug("= res.Raw: ", res.Raw)
 			break loop
 		}
 	}
