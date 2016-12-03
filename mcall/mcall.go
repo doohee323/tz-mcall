@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/gorilla/pat"
@@ -20,7 +21,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"bytes"
 )
 
 var (
@@ -105,22 +105,72 @@ func fetchCmd(input string) (string, error) {
 	return string(doc), nil
 }
 
-func exeCmd(cmd string) (string, error) {
-	parts := strings.Fields(cmd)
-	head := parts[0]
-	LOG.Debug("= head: ", head)
-	parts = parts[1:len(parts)]
-	LOG.Debug("= parts: ", parts)
-	cmd2 := exec.Command(head, parts...)
-	var out bytes.Buffer
-	cmd2.Stdout = &out
-	err := cmd2.Run()
-	fmt.Printf("%s\n", out.String())
+type ResultDoc struct {
+	Raw   string `json:"raw"`
+	Error string `json:"error"`
+}
+
+func exeCmd(str string) (string, error) {
+	res := ResultDoc{}
+
+	//make channels for out or for error
+	resultchan := make(chan string)
+	errchan := make(chan error, 10)
+
+	parts := strings.Fields(str)
+	cmdName := parts[0]
+	LOG.Debug("= cmdName: ", cmdName)
+	args := parts[1:len(parts)]
+	LOG.Debug("= args: ", args)
+
+	//get a pointer to a proc
+	cmd := exec.Command(cmdName, args...)
+	//setup stdout for this job
+	pipe, err := cmd.StdoutPipe()
 	if err != nil {
-		LOG.Debug("= exec.Command error: ", err)
-		return "", err
+		errchan <- err
 	}
-	return out.String(), err
+
+	//receiving command out in this thread
+	go func() {
+		b, err := ioutil.ReadAll(pipe)
+		if err != nil {
+			errchan <- err
+		}
+		resultchan <- string(b[:])
+	}()
+
+	//fireup command non blocking
+	err = cmd.Start()
+	if err != nil {
+		errchan <- err
+	}
+
+loop:
+	for {
+		select {
+		case <-time.After(time.Duration(360) * time.Second):
+			cmd.Process.Kill()
+			res.Error = "Runner: timedout"
+			break loop
+
+		case err := <-errchan:
+			res.Error = fmt.Sprintf("Runner: %s", err.Error())
+			break loop
+		case cmdresult := <-resultchan:
+			res.Raw = cmdresult
+			break loop
+		}
+	}
+
+	cmd.Wait()
+
+	if res.Error == "" {
+		res.Error = "Runner: OK"
+		return res.Raw, nil
+	}
+
+	return res.Raw, errors.New(res.Error)
 }
 
 func (g *CallFetch) request(input string) {
