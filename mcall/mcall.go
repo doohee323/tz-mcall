@@ -411,6 +411,7 @@ func getInput(aInput string) {
 	if err != nil {
 		LOG.Panic("Unmarshal error %s", err)
 	}
+	INPUTS = make([]string,1)
 	for i := range data.Inputs {
 		input := data.Inputs[i]["input"]
 		INPUTS = append(INPUTS, input.(string))
