@@ -110,12 +110,16 @@ func exeCmd(cmd string) (string, error) {
 	LOG.Debug("= head: ", head)
 	parts = parts[1:len(parts)]
 	LOG.Debug("= parts: ", parts)
-	out, err := exec.Command(head, parts...).Output()
+	cmd, err := exec.Command(head, parts...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	fmt.Printf("%s\n", out.String())
 	if err != nil {
 		LOG.Debug("= exec.Command error: ", err)
 		return "", err
 	}
-	return string(out), err
+	return out.String(), err
 }
 
 func (g *CallFetch) request(input string) {
