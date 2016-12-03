@@ -1,19 +1,19 @@
 # runit
-sudo mkdir -p /etc/service/tz_mcall
-sudo rm -Rf /etc/service/tz_mcall/run
-sudo touch /etc/service/tz_mcall/run
-sudo chmod 777 /etc/service/tz_mcall/run
+sudo mkdir -p /etc/service/tz-mcall
+sudo rm -Rf /etc/service/tz-mcall/run
+sudo touch /etc/service/tz-mcall/run
+sudo chmod 777 /etc/service/tz-mcall/run
 
-sudo echo '#!/bin/sh' >> /etc/service/tz_mcall/run
-sudo echo 'cd /usr/tz_mcall/mcall' >> /etc/service/tz_mcall/run
-sudo echo './mcall -w=true &' >> /etc/service/tz_mcall/run
+sudo echo '#!/bin/sh' >> /etc/service/tz-mcall/run
+sudo echo 'cd /usr/tz-mcall/mcall' >> /etc/service/tz-mcall/run
+sudo echo './mcall -w=true &' >> /etc/service/tz-mcall/run
 
 sudo mkdir -p /var/log/mcall
 #sudo chown -Rf ubuntu:ubuntu /var/log/mcall
 
-#sudo chown -Rf ubuntu:ubuntu /etc/service/tz_mcall
-sv start /etc/service/tz_mcall
+#sudo chown -Rf ubuntu:ubuntu /etc/service/tz-mcall
+sv start /etc/service/tz-mcall
 
-# init.d service start tz_mcall
-#sudo rm -rf /etc/init.d/tz_mcall
+# init.d service start tz-mcall
+#sudo rm -rf /etc/init.d/tz-mcall
 

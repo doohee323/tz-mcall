@@ -6,4 +6,4 @@ cd deb
 
 dpkg -b pkg-build
 
-mv pkg-build.deb tz_mcall.deb
+mv pkg-build.deb tz-mcall.deb
