@@ -162,6 +162,7 @@ loop:
 			LOG.Debug("= res.Error2: ", res.Error)
 			break loop
 		case cmdresult := <-resultchan:
+			LOG.Debug("= cmdresult: ", cmdresult)
 			if waitStr == "" {
 				if cmdresult != waitStr {
 					res.Raw = cmdresult
@@ -169,11 +170,11 @@ loop:
 				}
 			} else {
 				if strings.Contains(cmdresult, waitStr) {
-					res.Raw = cmdresult
 					break loop
+				} else {
+					res.Raw += cmdresult
 				}
 			}
-			LOG.Debug("= cmdresult: ", cmdresult)
 		}
 	}
 
