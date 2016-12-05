@@ -66,11 +66,11 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		ex) -c="add domains fortinet.com"  -> -c=\"add`domains`fortinet.com\"
 		
 	ex) recon-cli example
-	curl -d "type=cmd&params={"inputs":[{"input":"/usr/share/recon-ng/recon-cli -w=fortinet.com -m=domains-contacts/pgp_search -c=\"add`domains`fortinet.com\" -x","waitStr":"root@kali"}]}"  http://localhost:8080/mcall
+	curl -d "type=cmd&params={"inputs":[{"input":"/usr/share/recon-ng/recon-cli -w=fortinet.com -m=domains-contacts/pgp_search -c=\"add`domains`fortinet.com\" -x"}]}"  http://localhost:8080/mcall
 
 	=> need to be encoded.
 	
-	curl -d "type=cmd&params=%7B%22inputs%22%3A%5B%7B%22input%22%3A%22%2Fusr%2Fshare%2Frecon-ng%2Frecon-cli%20-w%3Dfortinet.com%20-m%3Ddomains-contacts%2Fpgp_search%20-c%3D%5C%22add%60domains%60fortinet.com%5C%22%20-x%22%2C%22waitStr%22%3A%22root%40kali%22%7D%5D%7D"  http://localhost:8080/mcall
+	curl -d "type=cmd&params=%7B%22inputs%22%3A%5B%7B%22input%22%3A%22%2Fusr%2Fshare%2Frecon-ng%2Frecon-cli%20-w%3Dfortinet.com%20-m%3Ddomains-contacts%2Fpgp_search%20-c%3D%5C%22add%60domains%60fortinet.com%5C%22%20-x%22%7D%5D%7D"  http://localhost:8080/mcall
 		  
 ```
 
