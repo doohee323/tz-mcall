@@ -62,10 +62,16 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	-lf: log file ex) /var/log/tz_mcall/tz_mcall.log, default: pwd
 	-c: configration file ex) /etc/tz_mcall/tz_mcall.conf, default: none
 	
-	cf. You can a predefined parameter ("waitStr") to wait for the end of the execution.
-	  ex) http://localhost:8080/mcall?type=cmd&params={"inputs":[{"input":"ls -al","waitStr":"$>"}]}
-	  It will wait for "$>", once it get the string, it'll return the result.
+	cf. If parameter has space(" "), you need to replace with "`" in the JSON paramter.
+		ex) -c="add domains fortinet.com"  -> -c=\"add`domains`fortinet.com\"
+		
+	ex) recon-cli example
+	curl -d "type=cmd&params={"inputs":[{"input":"/usr/share/recon-ng/recon-cli -w=fortinet.com -m=domains-contacts/pgp_search -c=\"add`domains`fortinet.com\" -x","waitStr":"root@kali"}]}"  http://localhost:8080/mcall
+
+	=> need to be encoded.
 	
+	curl -d "type=cmd&params=%7B%22inputs%22%3A%5B%7B%22input%22%3A%22%2Fusr%2Fshare%2Frecon-ng%2Frecon-cli%20-w%3Dfortinet.com%20-m%3Ddomains-contacts%2Fpgp_search%20-c%3D%5C%22add%60domains%60fortinet.com%5C%22%20-x%22%2C%22waitStr%22%3A%22root%40kali%22%7D%5D%7D"  http://localhost:8080/mcall
+		  
 ```
 
 -. to use:
