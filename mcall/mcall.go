@@ -149,6 +149,8 @@ func exeCmd(str string, waitStr string) (string, error) {
 		errchan <- err
 	}
 
+	var buffer bytes.Buffer
+
 loop:
 	for {
 		LOG.Debug("=-----------------------: ", "")
@@ -166,7 +168,7 @@ loop:
 			LOG.Debug("= cmdresult: ", cmdresult)
 			if waitStr == "" {
 				if cmdresult != waitStr {
-					res.Raw = cmdresult
+					buffer.WriteString(cmdresult)
 					break loop
 				}
 			} else {
@@ -175,11 +177,12 @@ loop:
 					break loop
 				} else {
 					LOG.Debug("= cmdresult2: ", cmdresult)
-					res.Raw += cmdresult
+					buffer.WriteString(cmdresult)
 				}
 			}
 		}
 	}
+	res.Raw = buffer.String()
 
 	cmd.Wait()
 
