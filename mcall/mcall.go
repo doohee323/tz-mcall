@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -20,7 +21,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"bytes"
 	"time"
 )
 
@@ -130,21 +130,20 @@ func exeCmd(str string, waitStr string) (string, error) {
 	//get a pointer to a proc
 	cmd := exec.Command(cmdName, args...)
 	//setup stdout for this job
-	pipe, err := cmd.StdoutPipe()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		errchan <- err
 	}
 
 	//receiving command out in this thread
 	go func() {
-		b, err := ioutil.ReadAll(pipe)
+		stdo, err := ioutil.ReadAll(stdout)
 		if err != nil {
 			errchan <- err
 		}
-		resultchan <- string(b[:])
+		resultchan <- string(stdo[:])
 	}()
 
-	//fireup command non blocking
 	err = cmd.Start()
 	if err != nil {
 		errchan <- err
@@ -181,6 +180,9 @@ loop:
 					buffer.WriteString(cmdresult)
 				}
 			}
+		default:
+			// LOG.Debug("= Sleep: ", "!!!!1")
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
 	res.Raw = buffer.String()
