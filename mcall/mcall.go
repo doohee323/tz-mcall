@@ -124,9 +124,8 @@ func exeCmd(str string, waitStr string) (string, error) {
 	LOG.Debug("= args: ", args)
 
 	//get a pointer to a proc
-	//cmd := exec.Command(cmdName, args...)
-	cmd := exec.Command(str)
-	LOG.Debug("= str: ", str)
+	args[2] = strings.Replace(args[2], "`", " ", -1)
+	cmd := exec.Command(cmdName, args...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
