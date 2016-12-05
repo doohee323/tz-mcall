@@ -151,6 +151,7 @@ func exeCmd(str string, waitStr string) (string, error) {
 
 loop:
 	for {
+		LOG.Debug("=-----------------------: ", "")
 		select {
 		case <-time.After(time.Duration(360) * time.Second):
 			cmd.Process.Kill()
@@ -170,8 +171,10 @@ loop:
 				}
 			} else {
 				if strings.Contains(cmdresult, waitStr) {
+					LOG.Debug("= cmdresult1: ", cmdresult)
 					break loop
 				} else {
+					LOG.Debug("= cmdresult2: ", cmdresult)
 					res.Raw += cmdresult
 				}
 			}
