@@ -28,6 +28,7 @@ var (
 	CONFIGFILE string
 	WORKERNUM  = 10
 	INPUTS     []string
+	WAITSTRS   []string
 	STYPE      string
 	WEBENABLED = false
 	HTTPHOST   = "localhost"
@@ -63,6 +64,7 @@ type CallFetch struct {
 	p            *Pipeline
 	result       chan FetchedResult
 	input        string
+	waitStr      string
 }
 
 func fetchHtml(input string) (string, error) {
@@ -87,14 +89,15 @@ func fetchHtml(input string) (string, error) {
 	return string(doc), nil
 }
 
-func fetchCmd(input string) (string, error) {
+func fetchCmd(input string, waitStr string) (string, error) {
 	if input == "" {
 		return "", nil
 	}
 
 	LOG.Debug("==============================================================")
 	LOG.Debug("= input: ", input)
-	doc, err := exeCmd(input)
+	LOG.Debug("= waitStr: ", waitStr)
+	doc, err := exeCmd(input, waitStr)
 	if err != nil {
 		LOG.Panic(err)
 		return "", err
@@ -110,7 +113,7 @@ type ResultDoc struct {
 	Error string `json:"error"`
 }
 
-func exeCmd(str string) (string, error) {
+func exeCmd(str string, waitStr string) (string, error) {
 	res := ResultDoc{}
 
 	//make channels for out or for error
@@ -154,15 +157,21 @@ loop:
 			res.Error = "Runner: timedout"
 			LOG.Debug("= res.Error1: ", res.Error)
 			break loop
-
 		case err := <-errchan:
 			res.Error = fmt.Sprintf("Runner: %s", err.Error())
 			LOG.Debug("= res.Error2: ", res.Error)
 			break loop
 		case cmdresult := <-resultchan:
-			if cmdresult != "" {
-				res.Raw = cmdresult
-				break loop
+			if waitStr == "" {
+				if cmdresult != waitStr {
+					res.Raw = cmdresult
+					break loop
+				}
+			} else {
+				if strings.Contains(cmdresult, waitStr) {
+					res.Raw = cmdresult
+					break loop
+				}
 			}
 			LOG.Debug("= cmdresult: ", cmdresult)
 		}
@@ -178,12 +187,13 @@ loop:
 	return res.Raw, errors.New(res.Error)
 }
 
-func (g *CallFetch) request(input string) {
+func (g *CallFetch) request(input string, waitStr string) {
 	g.p.request <- &CallFetch{
 		fetchedInput: g.fetchedInput,
 		p:            g.p,
 		result:       g.result,
 		input:        input,
+		waitStr:      waitStr,
 	}
 }
 
@@ -193,12 +203,14 @@ func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 		content <- doc
 		chk := false
 		val := ""
+		waitStr := ""
 		g.fetchedInput.Lock()
 		for n := range INPUTS {
 			if _, ok := g.fetchedInput.m[INPUTS[n]]; !ok {
 				chk = true
 				val = INPUTS[n]
-				g.request(val)
+				waitStr = WAITSTRS[n]
+				g.request(val, waitStr)
 				break
 			}
 		}
@@ -221,19 +233,19 @@ func (g *CallFetch) command() {
 	var err error
 	if g.input != "" {
 		if STYPE == "cmd" {
-			doc, err = fetchCmd(g.input)
+			doc, err = fetchCmd(g.input, g.waitStr)
 			if err != nil {
-				go func(u string) {
-					g.request(u)
-				}(g.input)
+				go func(u string, w string) {
+					g.request(u, w)
+				}(g.input, g.waitStr)
 				return
 			}
 		} else {
 			doc, err = fetchHtml(g.input)
 			if err != nil {
-				go func(u string) {
-					g.request(u)
-				}(g.input)
+				go func(u string, w string) {
+					g.request(u, w)
+				}(g.input, g.waitStr)
 				return
 			}
 		}
@@ -299,6 +311,7 @@ func execCmd() map[string]string {
 		p:            p,
 		result:       make(chan FetchedResult),
 		input:        "",
+		waitStr:      "",
 	}
 	p.request <- call
 
@@ -417,9 +430,16 @@ func getInput(aInput string) {
 		LOG.Panic("Unmarshal error %s", err)
 	}
 	INPUTS = make([]string, 1)
+	WAITSTRS = make([]string, 1)
 	for i := range data.Inputs {
 		input := data.Inputs[i]["input"]
 		INPUTS = append(INPUTS, input.(string))
+		waitStr := data.Inputs[i]["waitStr"]
+		if waitStr != nil {
+			WAITSTRS = append(WAITSTRS, waitStr.(string))
+		} else {
+			WAITSTRS = append(WAITSTRS, "")
+		}
 	}
 }
 

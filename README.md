@@ -25,6 +25,11 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		mcall -i="ls -al"
 		mcall -t=get -i=http://localhost:8000/test1
 		mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
+
+		cf) post with curl		
+		curl -d "type=cmd&params={"inputs":[{"input":"ls -al"}]}"  http://localhost:8080/mcall 
+		# params value is needed to url encoding like this,
+		# curl -d "type=cmd&params=%7B%22inputs%22%3A%5B%7B%22input%22%3A%22ls%20-al%22%7D%5D%7D"  http://localhost:8080/mcall
 		
 	- case 2: use configration file
 		vi /tz_mcall/etc/mcall.cfg
@@ -56,6 +61,10 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	-l: log level ex) debug, info, error, default: debug
 	-lf: log file ex) /var/log/tz_mcall/tz_mcall.log, default: pwd
 	-c: configration file ex) /etc/tz_mcall/tz_mcall.conf, default: none
+	
+	cf. You can a predefined parameter ("waitStr") to wait for the end of the execution.
+	  ex) http://localhost:8080/mcall?type=cmd&params={"inputs":[{"input":"ls -al","waitStr":"$>"}]}
+	  It will wait for "$>", once it get the string, it'll return the result.
 	
 ```
 
