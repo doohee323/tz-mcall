@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+//	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -117,10 +117,6 @@ type ResultDoc struct {
 func exeCmd(str string, waitStr string) (string, error) {
 	res := ResultDoc{}
 
-	//make channels for out or for error
-	resultchan := make(chan string)
-	errchan := make(chan error, 10)
-
 	parts := strings.Fields(str)
 	cmdName := parts[0]
 	LOG.Debug("= cmdName: ", cmdName)
@@ -129,72 +125,45 @@ func exeCmd(str string, waitStr string) (string, error) {
 
 	//get a pointer to a proc
 	cmd := exec.Command(cmdName, args...)
-	//setup stdout for this job
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		errchan <- err
+		fmt.Printf("Error: %s", err)
 	}
-
-	//receiving command out in this thread
-	go func() {
-		stdo, err := ioutil.ReadAll(stdout)
-		if err != nil {
-			errchan <- err
-		}
-		resultchan <- string(stdo[:])
-	}()
-
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+	}
 	err = cmd.Start()
 	if err != nil {
-		errchan <- err
+		fmt.Printf("Start error %s", err)
 	}
 
-	var buffer bytes.Buffer
+	stdo, g := ioutil.ReadAll(stdout)
+	stde, f := ioutil.ReadAll(stderr)
 
-loop:
-	for {
-		LOG.Debug("=-----------------------: ", "")
-		select {
-		case <-time.After(time.Duration(360) * time.Second):
-			cmd.Process.Kill()
-			res.Error = "Runner: timedout"
-			LOG.Debug("= res.Error1: ", res.Error)
-			break loop
-		case err := <-errchan:
-			res.Error = fmt.Sprintf("Runner: %s", err.Error())
-			LOG.Debug("= res.Error2: ", res.Error)
-			break loop
-		case cmdresult := <-resultchan:
-			LOG.Debug("= cmdresult: ", cmdresult)
-			if waitStr == "" {
-				if cmdresult != waitStr {
-					buffer.WriteString(cmdresult)
-					break loop
-				}
-			} else {
-				if strings.Contains(cmdresult, waitStr) {
-					LOG.Debug("= cmdresult1: ", cmdresult)
-					break loop
-				} else {
-					LOG.Debug("= cmdresult2: ", cmdresult)
-					buffer.WriteString(cmdresult)
-				}
-			}
-		default:
-			// LOG.Debug("= Sleep: ", "!!!!1")
-			time.Sleep(50 * time.Millisecond)
-		}
-	}
-	res.Raw = buffer.String()
+	d := cmd.Wait()
 
-	cmd.Wait()
-
-	if res.Error == "" {
-		res.Error = "Runner: OK"
-		return res.Raw, nil
+	if d != nil {
+		fmt.Println(d)
 	}
 
-	return res.Raw, errors.New(res.Error)
+	if g != nil {
+		fmt.Println(g)
+	}
+
+	if f != nil {
+		fmt.Println(f)
+		res.Error = string(stde)
+		return "", errors.New(res.Error)
+	}
+
+	fmt.Printf("Standard err is %s \n", stde)
+	fmt.Printf("res.Error is %s \n", res.Error)
+	res.Raw = string(stdo)
+	fmt.Printf("Standard out is %s \n", stdo)
+
+	return res.Raw, nil
 }
 
 func (g *CallFetch) request(input string, waitStr string) {
