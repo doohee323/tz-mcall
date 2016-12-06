@@ -92,7 +92,6 @@ func fetchCmd(input string) (string, error) {
 		return "", nil
 	}
 
-	LOG.Debug("==============================================================")
 	LOG.Debug("= input: ", input)
 	doc, err := exeCmd(input)
 	if err != nil {
@@ -113,6 +112,10 @@ type ResultDoc struct {
 func exeCmd(str string) (string, error) {
 	res := ResultDoc{}
 
+	//make channels for out or for error
+	resultchan := make(chan string)
+	errchan := make(chan error, 10)
+
 	parts := strings.Fields(str)
 	cmdName := parts[0]
 	LOG.Debug("= cmdName: ", cmdName)
@@ -128,37 +131,63 @@ func exeCmd(str string) (string, error) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		LOG.Error("Error: %s", err)
+		errchan <- err
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		LOG.Error("Error: %s", err)
-	}
+	//	stderr, err := cmd.StderrPipe()
+	//	if err != nil {
+	//		LOG.Error("Error: %s", err)
+	//	}
+
+	//receiving command out in this thread
+	go func() {
+		stdo, err := ioutil.ReadAll(stdout)
+		if err != nil {
+			errchan <- err
+		}
+		resultchan <- string(stdo[:])
+		//		stde, f := ioutil.ReadAll(stderr)
+		//		if f != nil {
+		//			LOG.Error(f)
+		//			res.Error = string(stde)
+		//		}
+	}()
+
+	//fireup command non blocking
 	err = cmd.Start()
 	if err != nil {
-		LOG.Error("Start error %s", err)
+		errchan <- err
 	}
 
-	stdo, g := ioutil.ReadAll(stdout)
-	stde, f := ioutil.ReadAll(stderr)
+loop:
+	for {
+		select {
+		case <-time.After(time.Duration(360) * time.Second):
+			cmd.Process.Kill()
+			res.Error = "Runner: timedout"
+			LOG.Debug("= res.Error1: ", res.Error)
+			break loop
 
-	d := cmd.Wait()
-
-	if d != nil {
-		LOG.Error(d)
+		case err := <-errchan:
+			res.Error = fmt.Sprintf("Runner: %s", err.Error())
+			LOG.Debug("= res.Error2: ", res.Error)
+			break loop
+		case cmdresult := <-resultchan:
+			if cmdresult != "" {
+				res.Raw = cmdresult
+				break loop
+			}
+			LOG.Debug("= cmdresult: ", cmdresult)
+		}
 	}
 
-	if g != nil {
-		LOG.Error(g)
+	cmd.Wait()
+
+	if res.Error == "" {
+		res.Error = "Runner: OK"
+		return res.Raw, nil
 	}
 
-	if f != nil {
-		LOG.Error(f)
-		res.Error = string(stde)
-		return "", errors.New(res.Error)
-	}
-
-	res.Raw = string(stdo)
-	return res.Raw, nil
+	return res.Raw, errors.New(res.Error)
 }
 
 func (g *CallFetch) request(input string) {
@@ -289,7 +318,6 @@ func execCmd() map[string]string {
 	count := 0
 	LOG.Debug("============ len(INPUTS): ", len(INPUTS))
 	for a := range call.result {
-		LOG.Debug("============ a: ", a)
 		count++
 		countStr := strconv.Itoa(count)
 		result[countStr] = a.content
@@ -323,7 +351,7 @@ func getHandle(w http.ResponseWriter, r *http.Request) {
 func postHandle(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		LOG.Debugf("ParseForm %s", err)
+		LOG.Error("ParseForm %s", err)
 	}
 	LOG.Debugf("\n what we got was %+v\n", r.Form)
 
@@ -399,6 +427,7 @@ func getInput(aInput string) {
 	if err != nil {
 		LOG.Error("Unmarshal error %s", err)
 	}
+	INPUTS = make([]string, 1)
 	for i := range data.Inputs {
 		input := data.Inputs[i]["input"]
 		INPUTS = append(INPUTS, input.(string))
@@ -409,7 +438,8 @@ func getInput(aInput string) {
 // 2 ways of run
 // - 1st: mcall web
 // 		call from brower: http://localhost:8080/main/core/1418,1419,2502,2694,2932,2933,2695
-// - 2nd: mcall core/graphite 1418,1419,2502,2694,2932,2933,2695
+// - 2nd: mcall on console
+//		mcall -i="ls -al"
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 func main() {
 	if len(os.Args) < 2 {
