@@ -1,4 +1,4 @@
-# tz_mcall
+# tz-mcall
 
 Concurrence with golang for multiple request (HTTP) or shell command.
 
@@ -6,7 +6,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 ```
 	- glide
 		cf. https://github.com/Masterminds/glide
-	- ~/tz_mcall> glide up
+	- ~/tz-mcall> glide up
 	
 	# It contains as below
 		go get github.com/op/go-logging
@@ -32,7 +32,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		# curl -d "type=cmd&params=%7B%22inputs%22%3A%5B%7B%22input%22%3A%22ls%20-al%22%7D%5D%7D"  http://localhost:8080/mcall
 		
 	- case 2: use configration file
-		vi /tz_mcall/etc/mcall.cfg
+		vi /tz-mcall/etc/mcall.cfg
 		[request]
 		type=cmd
 		input={"inputs":[{"input":"ls -al"},{"input":"ls"}]}
