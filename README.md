@@ -4,27 +4,66 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 
 -. install
 ```
+	- go
+		download and install 
+		https://golang.org
+
+		mkdir -p /Users/dhong/go
+		cd /Users/dhong/go
+
+		mkdir bin pkg src
+		mkdir src/github.com
+		mkdir src/github.com/doohee323
+
+		vi ~/.bash_profile
+		export GOROOT=/usr/local/go
+		export GOPATH=/Users/dhong/go
+		export PATH=$GOPATH/bin:$PATH
+		source .bash_profile
+
 	- glide
+		sudo su
+		export GOROOT=/usr/local/go
+		export GOPATH=/Users/dhong/go
+		export PATH=$GOPATH/bin:$PATH
+		curl https://glide.sh/get | sh
+		sudo ln -s /Users/dhong/go/bin/glide /usr/local/bin/glide
 		cf. https://github.com/Masterminds/glide
-	- ~/tz-mcall> glide up
+```
+
+-. build:
+```
+	cd $GOPATH/src/github.com/doohee323
+	git clone https://github.com/doohee323/tz-mcall.git
+	cd tz-mcall
+
+	mkdir -p bin pkg src
+	mkdir -p src/github.com
+	mkdir -p src/github.com/doohee323
+
+	glide install
+	glide update
 	
 	# It contains as below
-		go get github.com/op/go-logging
-		go get github.com/gorilla/pat
-		go get github.com/gorilla/mux
-		go get github.com/vaughan0/go-ini
-		go get github.com/stretchr/testify
-		go get golang.org/x/net/html
-		go get github.com/stretchr/testify/assert
-	
+	glide get github.com/op/go-logging
+	glide get github.com/gorilla/pat
+	glide get github.com/gorilla/mux
+	glide get github.com/vaughan0/go-ini
+	glide get github.com/stretchr/testify
+	glide get golang.org/x/net/html
+	glide get github.com/stretchr/testify/assert
+
+	go version
+	#sudo ln -s /usr/local/go/bin/go /usr/local/bin/go
+	go build
 ```
 	
 -. run:
 ```
 	- case 1: run command
-		mcall -i="ls -al"
-		mcall -t=get -i=http://localhost:8000/test1
-		mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
+		tz-mcall -i="ls -al"
+		tz-mcall -t=get -i=http://localhost:8000/test1
+		tz-mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
 
 		cf) post with curl		
 		curl -d "type=cmd&params={"inputs":[{"input":"ls -al"}]}"  http://localhost:8080/mcall 
