@@ -37,10 +37,6 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	git clone https://github.com/doohee323/tz-mcall.git
 	cd tz-mcall
 
-	mkdir -p bin pkg src
-	mkdir -p src/github.com
-	mkdir -p src/github.com/doohee323
-
 	glide install
 	glide update
 	
