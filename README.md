@@ -7,27 +7,29 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	- go
 		download and install 
 		https://golang.org
-
-		mkdir -p /Users/dhong/go
-		cd /Users/dhong/go
+        
+		mkdir -p /Volumes/workspace/go
+		cd /Volumes/workspace/go
 
 		mkdir bin pkg src
 		mkdir src/github.com
 		mkdir src/github.com/doohee323
 
 		vi ~/.bash_profile
-		export GOROOT=/usr/local/go
-		export GOPATH=/Users/dhong/go
-		export PATH=$GOPATH/bin:$PATH
+		//export GOROOT=/usr/local/go
+		export GOROOT=/usr/local/opt/go/libexec
+		export GOPATH=/Volumes/workspace/go
+		export PATH=$GOPATH/bin:.:$PATH
 		source .bash_profile
 
 	- glide
 		sudo su
 		export GOROOT=/usr/local/go
-		export GOPATH=/Users/dhong/go
-		export PATH=$GOPATH/bin:$PATH
-		curl https://glide.sh/get | sh
-		sudo ln -s /Users/dhong/go/bin/glide /usr/local/bin/glide
+		export GOPATH=/Volumes/workspace/go
+		export PATH=$GOPATH/bin:.:$PATH
+		// curl https://glide.sh/get | sh
+		// sudo ln -s /Volumes/workspace/go/bin/glide /usr/local/bin/glide
+		brew install glide
 		cf. https://github.com/Masterminds/glide
 ```
 
@@ -51,6 +53,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 
 	go version
 	#sudo ln -s /usr/local/go/bin/go /usr/local/bin/go
+	go clean --cache
 	go build
 ```
 	
@@ -58,7 +61,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 ```
 	- case 1: run command
 		tz-mcall -i="ls -al"
-		tz-mcall -t=get -i=http://localhost:8000/test1
+		tz-mcall -t=get -i=http://google.com/config
 		tz-mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
 
 		cf) post with curl		
@@ -72,15 +75,18 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		type=cmd
 		input={"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 	
-		mcall -c=/etc/mcall/mcall.cfg
+		tz-mcall -c=/etc/mcall/mcall.cfg
+		//tz-mcall -c=/Volumes/workspace/go/src/github.com/doohee323/tz-mcall/etc/mcall.cfg
 		
 	- case 3: write result on web
-		mcall -w=true
+		tz-mcall -w=true
 		open brower and call with url, like http://localhost:8080/mcall/get/${params}
 		ex) 
-		http://localhost:8080/mcall/cmd/{"inputs":[{"input":"ls -al"},{"input":"ls"}]}
-		http://localhost:8080/mcall/get/{"inputs":[{"input":"http://localhost:8080/test1","id":"aaa","pswd":"bbb"},{"input":"http://localhost:8080/test2","id":"aaa","pswd":"bbb"}]}
-				
+        params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
+        curl http://localhost:8080/mcall/cmd/`echo $params | base64`
+
+        params='{"inputs":[{"input":"http://google.com/config","id":"aaa","pswd":"bbb"},{"input":"http://google.com/aaa","id":"ccc"}]}'
+        curl http://localhost:8080/mcall/get/`echo $params | base64`
 ```
 
 -. paramters: 
@@ -100,12 +106,17 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	cf. If parameter has space(" "), you need to replace with "`" in the JSON paramter.
 		ex) -c="add domains fortinet.com"  -> -c=\"add`domains`fortinet.com\"
 		
-	ex) recon-cli example
-	curl -d "type=cmd&params={"inputs":[{"input":"/usr/share/recon-ng/recon-cli -w=fortinet.com -m=domains-contacts/pgp_search -c=\"add`domains`fortinet.com\" -x"}]}"  http://localhost:8080/mcall
-
+	ex) webcall example
+	curl -d "type=cmd&params={"inputs":[{"input":"ls -al"},{"input":"pwd"}]}"  http://localhost:8080/mcall
 	=> need to be encoded.
 	
-	curl -d "type=cmd&params=%7B%22inputs%22%3A%5B%7B%22input%22%3A%22%2Fusr%2Fshare%2Frecon-ng%2Frecon-cli%20-w%3Dfortinet.com%20-m%3Ddomains-contacts%2Fpgp_search%20-c%3D%5C%22add%60domains%60fortinet.com%5C%22%20-x%22%7D%5D%7D"  http://localhost:8080/mcall
+	params='type=post&params={"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
+	curl -d `echo $params | base64`  http://localhost:8080/mcall
+	
+	params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
+	curl http://localhost:8080/mcall?type=post&params=`echo $params | base64`
+	
+	http://localhost:8080/mcall?type=post&params={"inputs":[{"input":"http://core.local.xdn.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://core.local.xdn.com/test2","id":"aaa","pswd":"bbb"}]}
 		  
 ```
 

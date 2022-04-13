@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/gorilla/pat"
+	"github.com/op/go-logging"
+	"github.com/vaughan0/go-ini"
 	"io"
 	"io/ioutil"
 	_ "math/big"
@@ -18,14 +22,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/gorilla/pat"
-	"github.com/op/go-logging"
-	"github.com/vaughan0/go-ini"
 )
 
 var (
-	CFG        ini.File
 	CONFIGFILE string
 	WORKERNUM  = 10
 	INPUTS     []string
@@ -36,11 +35,9 @@ var (
 )
 
 var (
-	LOGFILE   *os.File
-	LOGFMT                  = "%{color}%{time:15:04:05.000000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}"
-	LOGFORMAT               = logging.MustStringFormatter(LOGFMT)
-	LOG                     = logging.MustGetLogger("logfile")
-	GLOGLEVEL logging.Level = logging.DEBUG
+	LOGFMT    = "%{color}%{time:15:04:05.000000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}"
+	LOGFORMAT = logging.MustStringFormatter(LOGFMT)
+	LOG       = logging.MustGetLogger("logfile")
 	logfile   string
 	loglevel  string
 )
@@ -167,7 +164,6 @@ loop:
 			res.Error = "Runner: timedout"
 			LOG.Debug("= res.Error1: ", res.Error)
 			break loop
-
 		case err := <-errchan:
 			res.Error = fmt.Sprintf("Runner: %s", err.Error())
 			LOG.Debug("= res.Error2: ", res.Error)
@@ -311,7 +307,7 @@ func execCmd() map[string]string {
 		fetchedInput: &FetchedInput{m: make(map[string]error)},
 		p:            p,
 		result:       make(chan FetchedResult),
-		input:        "",
+		input:        INPUTS[0],
 	}
 	p.request <- call
 
@@ -423,15 +419,22 @@ func getInput(aInput string) {
 	type Inputs struct {
 		Inputs []map[string]interface{} `json:"inputs"`
 	}
+	rawDecodedText, err := base64.StdEncoding.DecodeString(aInput)
 	var data Inputs
-	err := json.Unmarshal([]byte(aInput), &data)
+	if err != nil {
+		LOG.Error("base64 error %s", err)
+		err = json.Unmarshal([]byte(aInput), &data)
+	} else {
+		err = json.Unmarshal([]byte(rawDecodedText), &data)
+	}
 	if err != nil {
 		LOG.Error("Unmarshal error %s", err)
-	}
-	INPUTS = make([]string, 1)
-	for i := range data.Inputs {
-		input := data.Inputs[i]["input"]
-		INPUTS = append(INPUTS, input.(string))
+	} else {
+		INPUTS = make([]string, 1)
+		for i := range data.Inputs {
+			input := data.Inputs[i]["input"]
+			INPUTS = append(INPUTS, input.(string))
+		}
 	}
 }
 
@@ -493,7 +496,7 @@ func mainExec(args Args) map[string]string {
 	if vi != nil {
 		INPUTS = append(INPUTS, vi.(string))
 	}
-	if vt != nil {
+	if vc != nil {
 		CONFIGFILE = vc.(string)
 	}
 	if vw != nil {
@@ -534,7 +537,7 @@ func mainExec(args Args) map[string]string {
 		if !ok {
 			fmt.Println("'enable' missing from 'webserver", "enable")
 		} else {
-			if webEnbleStr == "false" {
+			if webEnbleStr == "true" {
 				WEBENABLED = true
 			} else {
 				WEBENABLED = false
