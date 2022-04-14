@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/gorilla/pat"
 	"github.com/op/go-logging"
-	"github.com/vaughan0/go-ini"
+	"github.com/spf13/viper"
 	"io"
 	"io/ioutil"
 	_ "math/big"
@@ -97,7 +97,6 @@ func fetchCmd(input string) (string, error) {
 		return "", err
 	} else {
 		LOG.Debug(doc)
-		fmt.Printf("%s", doc)
 	}
 	return string(doc), nil
 }
@@ -344,7 +343,7 @@ func getHandle(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-// http://localhost:8080/mcall?type=post&params={"inputs":[{"input":"http://core.local.xdn.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://core.local.xdn.com/test2","id":"aaa","pswd":"bbb"}]}
+// http://localhost:8080/mcall?type=post&params={"inputs":[{"input":"ls -al"},{"input":"pwd"}]}
 func postHandle(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
@@ -383,6 +382,7 @@ func makeResponse() []byte {
 	if err != nil {
 		LOG.Errorf("error: %s", err)
 	}
+	fmt.Printf("%s", string(b))
 	return b
 }
 
@@ -471,7 +471,6 @@ func main() {
 type Args map[string]interface{}
 
 func mainExec(args Args) map[string]string {
-	var rslt = map[string]string{}
 	var (
 		help = args["help"]
 		vt   = args["t"]
@@ -518,55 +517,30 @@ func mainExec(args Args) map[string]string {
 
 	////[ configuratin file ]////////////////////////////////////////////////////////////////////////////////
 	if CONFIGFILE != "" {
-		CFG, err := ini.LoadFile(CONFIGFILE)
+		viper.SetConfigFile(CONFIGFILE)
+		viper.SetConfigType("yaml")
+		err := viper.ReadInConfig()
 		if err != nil {
 			fmt.Println("parse config "+CONFIGFILE+" file error: ", err)
 		}
 
-		loglevel, _ = CFG.Get("log", "level")
-		logfile, _ = CFG.Get("log", "file")
+		loglevel = viper.GetString("log.level")
+		logfile = viper.GetString("log.file")
 
-		workerNumber, ok := CFG.Get("worker", "number")
-		if !ok {
-			fmt.Println("'file' missing from 'worker", "number")
+		WORKERNUM = viper.GetInt("worker.number")
+		webEnbleStr := viper.GetString("webserver.enable")
+		if webEnbleStr == "true" {
+			WEBENABLED = true
 		} else {
-			WORKERNUM, _ = strconv.Atoi(workerNumber)
-		}
-
-		webEnbleStr, ok := CFG.Get("webserver", "enable")
-		if !ok {
-			fmt.Println("'enable' missing from 'webserver", "enable")
-		} else {
-			if webEnbleStr == "true" {
-				WEBENABLED = true
-			} else {
-				WEBENABLED = false
-			}
+			WEBENABLED = false
 		}
 
 		if WEBENABLED == true {
-			httpost, ok := CFG.Get("webserver", "host")
-			if !ok {
-				fmt.Println("'host' missing from 'webserver", "host")
-			} else {
-				HTTPHOST = httpost
-			}
-
-			httpport, ok := CFG.Get("webserver", "port")
-			if !ok {
-				fmt.Println("'port' missing from 'webserver", "port")
-			} else {
-				HTTPPORT = httpport
-			}
+			HTTPHOST = viper.GetString("webserver.host")
+			HTTPPORT = viper.GetString("webserver.port")
 		} else {
-			input, ok := CFG.Get("request", "input")
-			if !ok {
-				fmt.Println("'input' missing from 'request' section")
-			}
-			stype, _ := CFG.Get("request", "type")
-			if stype != "" {
-				STYPE = stype
-			}
+			input := viper.GetString("request.input")
+			STYPE = viper.GetString("request.type")
 			getInput(input)
 		}
 	}
@@ -588,6 +562,7 @@ func mainExec(args Args) map[string]string {
 
 	logback := logging.NewLogBackend(LOGFILE, "", 0)
 	logformatted := logging.NewBackendFormatter(logback, LOGFORMAT)
+
 	GLOGLEVEL, err := logging.LogLevel(loglevel)
 	if err != nil {
 		GLOGLEVEL = logging.DEBUG
@@ -602,10 +577,11 @@ func mainExec(args Args) map[string]string {
 	LOG.Debug("httpport: ", HTTPPORT)
 
 	////[ run app ]////////////////////////////////////////////////////////////////////////////////
+	var rslt = map[string]string{}
 	if WEBENABLED == true {
 		webserver()
 	} else {
-		rslt = execCmd()
+		makeResponse()
 	}
 	return rslt
 }
