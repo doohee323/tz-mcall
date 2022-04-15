@@ -67,4 +67,6 @@ docker run -p 8090:8090 -it tz-mcall:latest /app/tz-mcall -c=/app/mcall.yaml
 params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
 curl http://localhost:8090/mcall/cmd/`echo $params | base64`
 
+params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
+curl http://k8s.mcall.ejncorp.com/mcall/cmd/`echo $params | base64`
 

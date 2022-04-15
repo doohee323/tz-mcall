@@ -13,8 +13,6 @@ pipeline {
         K8S_SOURCE = "${env.BRANCH_NAME == "main" ? "k8s.yaml" : env.BRANCH_NAME == "qa" ? "k8s-qa.yaml" : "k8s-dev.yaml"}"
         K8S_FILE = "k8s.yaml"
 
-        SLACK_HOOK = "https://hooks.slack.com/services/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"
-
         // *** for changing cluster ***
         AWS_REGION = "ap-northeast-2"
         CLUSTER_NAME = "eks-main-s"
