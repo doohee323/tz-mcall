@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tz-mcall
+spec:
+  selector:
+    matchLabels:
+      app: tz-mcall
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 50%
+  template:
+    metadata:
+      labels:
+        org: ejn
+        team: devops
+        project: mcall
+        environment: prod
+        app: tz-mcall
+    spec:
+      imagePullSecrets:
+        - name: ejn-registrykey
+      containers:
+      - name: tz-mcall
+        image: ${REPOSITORY_TAG}
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "100Mi"
+            cpu: "100m"
+          limits:
+            memory: "4Gi"
+            cpu: "1800m"
+#        readinessProbe:
+#          httpGet:
+#            path: /
+#            port: 80
+        envFrom:
+        - configMapRef:
+            name: tz-mcall
+      nodeSelector:
+        team: devops
+        environment: prod
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tz-mcall
+spec:
+  selector:
+    app: tz-mcall
+  type: NodePort
+  ports:
+    - port: 3000
+      name: api-3000
+      targetPort: 3000
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tz-mcall
+data:
+  GIT_BRANCH: ${GIT_BRANCH}
+  container_env: 'docker'
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tz-mcall
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/actions.redirect-to-https: >
+        {"Type":"redirect","RedirectConfig":{"Port":"443","Protocol":"HTTPS","StatusCode":"HTTP_302"}}
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:${AWS_REGION}:${ACCOUNT_ID}:certificate/${CERTIFICATE}
+spec:
+  rules:
+  - host: api.${DOMAIN_NAME}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: tz-mcall
+            port:
+              number: 3000
+
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tz-mcall
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tz-mcall
+  minReplicas: 1
+  maxReplicas: 200
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
