@@ -29,6 +29,7 @@ var (
 	WORKERNUM  = 10
 	INPUTS     []string
 	STYPE      string
+	FORMAT     string
 	WEBENABLED = false
 	HTTPHOST   = "localhost"
 	HTTPPORT   = "8080"
@@ -371,19 +372,24 @@ func postHandle(w http.ResponseWriter, r *http.Request) {
 func makeResponse() []byte {
 	result := execCmd()
 
-	res := make(map[string]string)
-	res["status"] = "OK"
-	res["ts"] = time.Now().String()
-	str, err := json.Marshal(result)
-	res["count"] = strconv.Itoa(len(result) - 1)
-	res["result"] = string(str)
+	if FORMAT == "json" {
+		res := make(map[string]string)
+		res["status"] = "OK"
+		res["ts"] = time.Now().String()
+		str, err := json.Marshal(result)
+		res["count"] = strconv.Itoa(len(result) - 1)
+		res["result"] = string(str)
 
-	b, err := json.Marshal(res)
-	if err != nil {
-		LOG.Errorf("error: %s", err)
+		b, err := json.Marshal(res)
+		if err != nil {
+			LOG.Errorf("error: %s", err)
+		}
+		fmt.Printf("%s", string(b))
+		return b
+	} else {
+		fmt.Printf("%s", result)
+		return []byte("")
 	}
-	fmt.Printf("%s", string(b))
-	return b
 }
 
 func webserver() {
@@ -457,14 +463,14 @@ func main() {
 		vt   = flag.String("t", "cmd", "Type")
 		vi   = flag.String("i", "", "input")
 		vc   = flag.String("c", "", "configuration file path")
-		vw   = flag.Bool("w", false, "run webserver")
+		vw   = flag.Bool("w", true, "run webserver")
 		vp   = flag.String("p", "8080", "webserver port")
-		//			vf   = flag.String("f", "json", "return format")
-		vlf = flag.String("logfile", "/var/log/mcall/mcall.log", "Logfile destination. STDOUT | STDERR or file path")
-		vll = flag.String("loglevel", "DEBUG", "Loglevel CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG")
+		vf   = flag.String("f", "json", "return format")
+		vlf  = flag.String("logfile", "./mcall.log", "Logfile destination. STDOUT | STDERR or file path")
+		vll  = flag.String("loglevel", "DEBUG", "Loglevel CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG")
 	)
 	flag.Parse()
-	var args = Args{"help": *help, "t": *vt, "i": *vi, "c": *vc, "w": *vw, "vp": *vp, "logfile": *vlf, "loglevel": *vll}
+	var args = Args{"help": *help, "t": *vt, "i": *vi, "c": *vc, "w": *vw, "p": *vp, "f": *vf, "logfile": *vlf, "loglevel": *vll}
 	mainExec(args)
 }
 
@@ -478,9 +484,9 @@ func mainExec(args Args) map[string]string {
 		vc   = args["c"]
 		vw   = args["w"]
 		vp   = args["p"]
-		//			vf   = args["f"]
-		vlf = args["logfile"]
-		vll = args["loglevel"]
+		vf   = args["f"]
+		vlf  = args["logfile"]
+		vll  = args["loglevel"]
 	)
 
 	if help == true {
@@ -506,8 +512,15 @@ func mainExec(args Args) map[string]string {
 	} else {
 		HTTPPORT = "8080"
 	}
+	if vf != nil {
+		FORMAT = vf.(string)
+	} else {
+		FORMAT = "json"
+	}
 	if vlf != nil {
 		logfile = vlf.(string)
+	} else {
+		logfile = "/var/log/mcall/mcall.log"
 	}
 	if vll != nil {
 		loglevel = vll.(string)

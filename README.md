@@ -8,52 +8,57 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		download and install 
 		https://golang.org
         
-		mkdir -p /Volumes/workspace/go
-		cd /Volumes/workspace/go
+        #WORKDIR=/Volumes/workspace/go
+        #WORKDIR=/Volumes/workspace/ejn/ejn-devops-utils/projects/go
+        
+		mkdir -p /Volumes/workspace/ejn/ejn-devops-utils/projects/go
+		cd /Volumes/workspace/ejn/ejn-devops-utils/projects/go
 
 		mkdir bin pkg src
-		mkdir src/github.com
-		mkdir src/github.com/doohee323
+		mkdir -p src/github.com
+		mkdir -p src/github.com/ejnkr
 
 		vi ~/.bash_profile
 		//export GOROOT=/usr/local/go
 		export GOROOT=/usr/local/opt/go/libexec
-		export GOPATH=/Volumes/workspace/go
+		export GOPATH=/Volumes/workspace/ejn/ejn-devops-utils/projects/go
 		export PATH=$GOPATH/bin:.:$PATH
 		source .bash_profile
 		
-		export GO111MODULE=on
-
 	- glide
 		sudo su
 		export GOROOT=/usr/local/go
-		export GOPATH=/Volumes/workspace/go
+		export GOPATH=/Volumes/workspace/ejn/ejn-devops-utils/projects/go
 		export PATH=$GOPATH/bin:.:$PATH
 		// curl https://glide.sh/get | sh
-		// sudo ln -s /Volumes/workspace/go/bin/glide /usr/local/bin/glide
+		// sudo ln -s /Volumes/workspace/ejn/ejn-devops-utils/projects/go/bin/glide /usr/local/bin/glide
 		brew install glide
 		cf. https://github.com/Masterminds/glide
 ```
 
 -. build:
 ```
-	cd $GOPATH/src/github.com/doohee323
-	git clone https://github.com/doohee323/tz-mcall.git
+	cd $GOPATH/src/github.com/ejnkr
+	git clone https://github.com/ejnkr/tz-mcall.git
 	cd tz-mcall
 
 	glide install
 	glide update
 	
 	# It contains as below
+	export GO111MODULE=on
 	#go env -w GO111MODULE=auto
 	go mod init
+	go mod tidy
 	go get ./...
 	go mod vendor
-	
-	# go build "tz-mcall"
+	go get -t github.com/ejnkr/tz-mcall
+
+	glide install
+	glide update
 	
 	//glide get github.com/spf13/viper
-	//glide get github.com/vaughan0/go-ini
+	go get github.com/spf13/viper
 
 	go version
 	#sudo ln -s /usr/local/go/bin/go /usr/local/bin/go
@@ -82,7 +87,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		input={"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 	
 		tz-mcall -c=/etc/mcall/mcall.yaml
-		//tz-mcall -c=/Volumes/workspace/go/src/github.com/doohee323/tz-mcall/etc/mcall.yaml
+		//tz-mcall -c=/Volumes/workspace/ejn/ejn-devops-utils/projects/go/src/github.com/doohee.hong/tz-mcall/etc/mcall.yaml
 		
 	- case 3: write result on web
 		tz-mcall -w=true
@@ -128,6 +133,8 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 
 -. to use:
 ```
-	go get -u github.com/doohee323/tz_mcall/mcall
+	go get -u github.com/doohee.hong/tz_mcall/mcall
 ```
-	
+params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
+curl http://localhost:8080/mcall/cmd/`echo $params | base64`
+

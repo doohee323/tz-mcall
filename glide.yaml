@@ -1,8 +1,7 @@
 package: .
 owners:
 - name: Dewey Hong
-  email: doohee323@gmail.com
-  homepage: https://topzone.biz/
+  email: doohee.hong@ejn.gg
 import:
 - package: github.com/op/go-logging
 - package: github.com/gorilla/pat
@@ -10,5 +9,5 @@ import:
 - package: github.com/stretchr/testify
 - package: golang.org/x/net/html
 - package: github.com/stretchr/testify/assert
-- package: github.com/spf13/viper
+#- package: github.com/spf13/viper
 
