@@ -15,14 +15,14 @@ spec:
   template:
     metadata:
       labels:
-        org: ejn
+        org: tz
         team: devops
         project: mcall
         environment: prod
         app: tz-mcall
     spec:
       imagePullSecrets:
-        - name: ejn-registrykey
+        - name: tz-registrykey
       containers:
       - name: tz-mcall
         image: ${REPOSITORY_TAG}

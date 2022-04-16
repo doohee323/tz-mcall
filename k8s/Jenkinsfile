@@ -16,7 +16,7 @@ pipeline {
         // *** for changing cluster ***
         AWS_REGION = "ap-northeast-2"
         CLUSTER_NAME = "eks-main-s"
-        DOMAIN_NAME = "ejncorp.com"
+        DOMAIN_NAME = "tzcorp.com"
         ACCOUNT_ID = "215559030652"
         CERTIFICATE = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "8b1c6fc5-510b-4453-badf-7f1d314cc3b1" : "01fe7ad7-831f-45e1-a53c-52f3c1e4fcac"}"
         NODE_ENV = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "production" : "development"}"
@@ -24,7 +24,7 @@ pipeline {
         // *** fixed variables ***
         GIT_BRANCH = "${env.GIT_BRANCH}"
         GIT_CREDENTIAL = 'Github'
-        KUBECTL = "kubectl -n " + "${NAMESPACE}" + " --kubeconfig /var/lib/jenkins/.kube/ejn_" + "${CLUSTER_NAME}"
+        KUBECTL = "kubectl -n " + "${NAMESPACE}" + " --kubeconfig /var/lib/jenkins/.kube/tz_" + "${CLUSTER_NAME}"
         REPO_HOST = "${ACCOUNT_ID}" +".dkr.ecr." + "${AWS_REGION}" + ".amazonaws.com"
         IMAGE_TAG = "${DOCKER_NAME}:${GIT_BRANCH}-${TAG_ID}"
         REPOSITORY_TAG = "${REPO_HOST}/${IMAGE_TAG}"

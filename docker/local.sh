@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #ROOTDIR=/Volumes/workspace
-#ROOTDIR=/Volumes/workspace/ejn/ejn-devops-utils/projects
+#ROOTDIR=/Volumes/workspace/tz/tz-devops-utils/projects
 #ROOTDIR=/vagrant/projects
 
 cd $ROOTDIR
@@ -68,5 +68,5 @@ params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
 curl http://localhost:8090/mcall/cmd/`echo $params | base64`
 
 params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
-curl http://k8s.mcall.ejncorp.com/mcall/cmd/`echo $params | base64`
+curl http://k8s.mcall.tzcorp.com/mcall/cmd/`echo $params | base64`
 

@@ -12,14 +12,14 @@ spec:
   template:
     metadata:
       labels:
-        org: ejn
+        org: tz
         team: devops
         project: mcall
         environment: ${STAGING}
         app: tz-mcall-${GIT_BRANCH}
     spec:
       imagePullSecrets:
-        - name: ejn-registrykey
+        - name: tz-registrykey
       containers:
       - name: tz-mcall-${GIT_BRANCH}
         image: ${REPOSITORY_TAG}

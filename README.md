@@ -9,10 +9,10 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		https://golang.org
         
         #WORKDIR=/Volumes/workspace/go
-        #WORKDIR=/Volumes/workspace/ejn/ejn-devops-utils/projects/go
+        #WORKDIR=/Volumes/workspace/tz/tz-devops-utils/projects/go
         
-		mkdir -p /Volumes/workspace/ejn/ejn-devops-utils/projects/go
-		cd /Volumes/workspace/ejn/ejn-devops-utils/projects/go
+		mkdir -p /Volumes/workspace/tz/tz-devops-utils/projects/go
+		cd /Volumes/workspace/tz/tz-devops-utils/projects/go
 
 		mkdir bin pkg src
 		mkdir -p src/github.com
@@ -21,17 +21,17 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		vi ~/.bash_profile
 		//export GOROOT=/usr/local/go
 		export GOROOT=/usr/local/opt/go/libexec
-		export GOPATH=/Volumes/workspace/ejn/ejn-devops-utils/projects/go
+		export GOPATH=/Volumes/workspace/tz/tz-devops-utils/projects/go
 		export PATH=$GOPATH/bin:.:$PATH
 		source .bash_profile
 		
 	- glide
 		sudo su
 		export GOROOT=/usr/local/go
-		export GOPATH=/Volumes/workspace/ejn/ejn-devops-utils/projects/go
+		export GOPATH=/Volumes/workspace/tz/tz-devops-utils/projects/go
 		export PATH=$GOPATH/bin:.:$PATH
 		// curl https://glide.sh/get | sh
-		// sudo ln -s /Volumes/workspace/ejn/ejn-devops-utils/projects/go/bin/glide /usr/local/bin/glide
+		// sudo ln -s /Volumes/workspace/tz/tz-devops-utils/projects/go/bin/glide /usr/local/bin/glide
 		brew install glide
 		cf. https://github.com/Masterminds/glide
 ```
@@ -87,7 +87,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		input={"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 	
 		tz-mcall -c=/etc/mcall/mcall.yaml
-		//tz-mcall -c=/Volumes/workspace/ejn/ejn-devops-utils/projects/go/src/github.com/doohee.hong/tz-mcall/etc/mcall.yaml
+		//tz-mcall -c=/Volumes/workspace/tz/tz-devops-utils/projects/go/src/github.com/doohee.hong/tz-mcall/etc/mcall.yaml
 		
 	- case 3: write result on web
 		tz-mcall -w=true
