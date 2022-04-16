@@ -3,7 +3,6 @@ Version: 1.0.0
 Section: misc
 Priority: optional
 Architecture: all
-Maintainer: "Topzone" <doohee323@gmail.com>
-Homepage: http://doohee323.github.io
-Description: Server Development base library install package
+Maintainer: "EJN" <doohee.hong@ejn.gg>
+Description: Concurrence with golang for multiple request (HTTP) or shell command.
  1.0.0 : init..#1
