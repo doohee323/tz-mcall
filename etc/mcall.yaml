@@ -3,21 +3,24 @@ request:
     type: get
     input: {"inputs":[{"input":"http://google.com/config","id":"aaa","pswd":"bbb"},
                       {"input":"http://google.com/bbb","id":"aaa","pswd":"bbb"}]}
+
 #    type: cmd
 #    input: {"inputs":[{"input":"ls -al"},{"input":"pwd"}]}
 
 response:
     format: json
+    coding:
+        type: url   # std, url
 
 worker:
     number: 3
 
 log:
     level: debug
-    file: /var/log/mcall/mcall.log
+    file: /app/log/mcall.log
 
 webserver:
     enable: true
-    host: localhost
-    port: 8080
+    host: 0.0.0.0
+    port: 3000
 

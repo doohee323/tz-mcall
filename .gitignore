@@ -6,6 +6,4 @@
 /mcall.log
 /.DS_Store
 tz-mcall
-go.mod
-go.sum
-.idea
+s3

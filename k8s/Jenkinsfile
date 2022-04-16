@@ -1,0 +1,110 @@
+pipeline {
+   agent any
+
+   environment {
+        GIT_URL = "https://github.com/ejnkr/tz-mcall.git"
+        TAG_ID = "${env.BRANCH_NAME == "main" ? "main-${env.BUILD_NUMBER}" : env.BRANCH_NAME == "qa" ? "qa-${env.BUILD_NUMBER}" : "${env.BUILD_NUMBER}"}"
+        DOCKER_NAME = "tz-mcall"    // DOCKER_NAME
+        APP_NAME = "tz-mcall"
+        STAGING = "${env.BRANCH_NAME == "main" ? "prod" : env.BRANCH_NAME == "qa" ? "qa" : "dev"}"
+        NAMESPACE = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "devops" : "devops-dev"}"
+        DOCKER_FILE = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "Dockerfile_prod" : "Dockerfile"}"
+        BRANCH_ROLLOUT = "true" // optional) default: false
+        K8S_SOURCE = "${env.BRANCH_NAME == "main" ? "k8s.yaml" : env.BRANCH_NAME == "qa" ? "k8s-qa.yaml" : "k8s-dev.yaml"}"
+        K8S_FILE = "k8s.yaml"
+
+        // *** for changing cluster ***
+        AWS_REGION = "ap-northeast-2"
+        CLUSTER_NAME = "eks-main-s"
+        DOMAIN_NAME = "ejncorp.com"
+        ACCOUNT_ID = "215559030652"
+        CERTIFICATE = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "8b1c6fc5-510b-4453-badf-7f1d314cc3b1" : "01fe7ad7-831f-45e1-a53c-52f3c1e4fcac"}"
+        NODE_ENV = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "production" : "development"}"
+
+        // *** fixed variables ***
+        GIT_BRANCH = "${env.GIT_BRANCH}"
+        GIT_CREDENTIAL = 'Github'
+        KUBECTL = "kubectl -n " + "${NAMESPACE}" + " --kubeconfig /var/lib/jenkins/.kube/ejn_" + "${CLUSTER_NAME}"
+        REPO_HOST = "${ACCOUNT_ID}" +".dkr.ecr." + "${AWS_REGION}" + ".amazonaws.com"
+        IMAGE_TAG = "${DOCKER_NAME}:${GIT_BRANCH}-${TAG_ID}"
+        REPOSITORY_TAG = "${REPO_HOST}/${IMAGE_TAG}"
+        REPO_HOST_URL = "https://" + "${REPO_HOST}"
+        REGISTRY_CREDENTIAL = 'jenkins-aws-secret'
+        AWS_ACCESS_KEY_ID     = credentials('jenkins-aws-secret-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('jenkins-aws-secret-access-key')
+   }
+
+   stages {
+      stage('Preparation') {
+         steps {
+            cleanWs()
+            git credentialsId: GIT_CREDENTIAL,
+            url: GIT_URL,
+            branch: GIT_BRANCH
+         }
+      }
+
+      stage('Copy Yaml') {
+         steps {
+            dir("${workspace}"){
+                script{
+                    sh "cp -Rp k8s/" + "${K8S_SOURCE}" + " ./" + "${K8S_FILE}"
+                    sh "cp -Rp docker/"+"${DOCKER_FILE}"+" ./Dockerfile"
+                }
+            }
+         }
+      }
+
+      stage('Build') {
+         steps {
+            dir("${workspace}"){
+                script{
+//                     sh "bash ./k8s/config.sh "+"${GIT_BRANCH} "+"${STAGING}"
+                    sh "bash /var/lib/jenkins/k8s.sh build"
+                }
+            }
+         }
+      }
+
+      stage('Push Image') {
+         steps {
+            script {
+                sh "bash /var/lib/jenkins/k8s.sh push"
+            }
+         }
+      }
+
+      stage('Deploy the service to Cluster') {
+        steps {
+//             sh "bash /var/lib/jenkins/k8s.sh delete"
+            sh "bash /var/lib/jenkins/k8s.sh apply"
+        }
+      }
+
+//       stage('Email'){
+//         steps {
+//             script {
+//                 env.GIT_COMMIT_MSG = sh (script: 'git log -1 --pretty=%B ${GIT_COMMIT}', returnStdout: true).trim()
+//                 env.GIT_AUTHOR = sh (script: 'git log -1 --pretty=%cn ${GIT_COMMIT}', returnStdout: true).trim()
+//                 env.GIT_COMMIT_EMAIL = sh (script: 'git log --format="%ae" | head -1', returnStdout: true).trim()
+//             }
+//           emailext attachLog: true, body: "${currentBuild.currentResult}: Job ${env.JOB_NAME} build ${env.BUILD_NUMBER}\n More info at: ${env.BUILD_URL}",
+//             subject: "Jenkins Build ${currentBuild.currentResult}: Job ${env.JOB_NAME} ( ${GIT_AUTHOR} ) - ${GIT_COMMIT_MSG}",
+//             to: "${GIT_COMMIT_EMAIL}"
+//         }
+//       }
+
+//       stage('Verify deployment') {
+//         steps{
+//             sh "bash /var/lib/jenkins/k8s.sh verify"
+//         }
+//       }
+
+//       stage('Send slack') {
+//         steps{
+//             sh "bash /var/lib/jenkins/k8s.sh slack"
+//         }
+//       }
+   }
+}
+
