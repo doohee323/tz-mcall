@@ -16,7 +16,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 
 		mkdir bin pkg src
 		mkdir -p src/github.com
-		mkdir -p src/github.com/ejnkr
+		mkdir -p src/github.com/doohee323
 
 		vi ~/.bash_profile
 		//export GOROOT=/usr/local/go
@@ -38,8 +38,8 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 
 -. build:
 ```
-	cd $GOPATH/src/github.com/ejnkr
-	git clone https://github.com/ejnkr/tz-mcall.git
+	cd $GOPATH/src/github.com/doohee323
+	git clone https://github.com/doohee323/tz-mcall.git
 	cd tz-mcall
 
 	glide install
@@ -52,7 +52,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	go mod tidy
 	go get ./...
 	go mod vendor
-	go get -t github.com/ejnkr/tz-mcall
+	go get -t github.com/doohee323/tz-mcall
 
 	glide install
 	glide update

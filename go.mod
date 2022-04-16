@@ -1,4 +1,4 @@
-module github.com/ejnkr/tz-mcall
+module github.com/doohee323/tz-mcall
 
 go 1.18
 

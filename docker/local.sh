@@ -24,20 +24,20 @@ go version
 
 mkdir bin pkg src
 mkdir -p src/github.com
-mkdir -p src/github.com/ejnkr
+mkdir -p src/github.com/doohee323
 
-cd $GOPATH/src/github.com/ejnkr
-git clone https://github.com/ejnkr/tz-mcall.git
+cd $GOPATH/src/github.com/doohee323
+git clone https://github.com/doohee323/tz-mcall.git
 cd tz-mcall
 
 export GO111MODULE=on
 #go env -w GO111MODULE=auto
-#go mod init github.com/ejnkr/tz-mcall
+#go mod init github.com/doohee323/tz-mcall
 go mod init
 go mod tidy
 go get ./...
 go mod vendor
-go get -t github.com/ejnkr/tz-mcall
+go get -t github.com/doohee323/tz-mcall
 
 sudo apt update -y
 sudo apt install golang-glide -y
