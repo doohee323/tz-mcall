@@ -70,15 +70,15 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 ```
 	- case 1: run command
 		tz-mcall -i="ls -al"
-		tz-mcall -t=get -i=http://google.com/config
+		tz-mcall -t=get -i=http://localhost:3000/healthcheck
 		tz-mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
 
 		cf) post with curl		
 		params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}' 
-		curl -d "type=cmd&params=`echo $params | base64`" http://localhost:8080/mcall
+		curl -d "type=cmd&params=`echo $params | base64`" http://localhost:3000/mcall
 
 		params='{"inputs":[{"input":"http://google.com/config","id":"aaa","pswd":"bbb"},{"input":"http://google.com/aaa","id":"ccc"}]}' 
-		curl -d "type=post&params=`echo $params | base64`" http://localhost:8080/mcall
+		curl -d "type=post&params=`echo $params | base64`" http://localhost:3000/mcall
 		
 	- case 2: use configration file
 		vi /tz-mcall/etc/mcall.yaml
@@ -94,10 +94,10 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		
 		ex) 
         params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
-        curl http://localhost:8080/mcall/cmd/`echo $params | base64`
+        curl http://localhost:3000/mcall/cmd/`echo $params | base64`
 
         params='{"inputs":[{"input":"http://google.com/config","id":"aaa","pswd":"bbb"},{"input":"http://google.com/aaa","id":"ccc"}]}'
-        curl http://localhost:8080/mcall/get/`echo $params | base64`
+        curl http://localhost:3000/mcall/get/`echo $params | base64`
 ```
 
 -. paramters: 
@@ -107,8 +107,9 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		ex) http://localhost:8000/test, ls -al
 			http://localhost:8000/test1, http://localhost:8000/test2
 	-w: webserver on/off ex) on, default: off
-	-p: webserver port ex) default: 8080
+	-p: webserver port ex) default: 3000
 	-f: return format ex) json, plain, default: json
+	-e: return result with encoding ex) std, url
 	-n: number of worker ex) default: 10
 	-l: log level ex) debug, info, error, default: debug
 	-lf: log file ex) /var/log/tz_mcall/tz_mcall.log, default: pwd
@@ -118,16 +119,16 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		ex) -c="add domains fortinet.com"  -> -c=\"add`domains`fortinet.com\"
 		
 	ex) after "tz-mcall -w=true"
-	curl -d "type=cmd&params={"inputs":[{"input":"ls -al"},{"input":"pwd"}]}"  http://localhost:8080/mcall
+	curl -d "type=cmd&params={"inputs":[{"input":"ls -al"},{"input":"pwd"}]}"  http://localhost:3000/mcall
 	=> need to be encoded.
 	
 	params='type=post&params={"inputs":[{"input":"http://google.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://google.com/test2","id":"aaa","pswd":"bbb"}]}'
-	curl -d $params  http://localhost:8080/mcall
+	curl -d $params  http://localhost:3000/mcall
 	
 	params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
-	curl http://localhost:8080/mcall?type=post&params=`echo $params | base64`
+	curl http://localhost:3000/mcall?type=post&params=`echo $params | base64`
 	
-	http://localhost:8080/mcall?type=post&params={"inputs":[{"input":"http://google.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://google.com/test2","id":"aaa","pswd":"bbb"}]}
+	http://localhost:3000/mcall?type=post&params={"inputs":[{"input":"http://google.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://google.com/test2","id":"aaa","pswd":"bbb"}]}
 		  
 ```
 
@@ -136,5 +137,18 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	go get -u github.com/doohee.hong/tz_mcall/mcall
 ```
 params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
-curl http://localhost:8080/mcall/cmd/`echo $params | base64`
+curl http://localhost:3000/mcall/cmd/`echo $params | base64`
 
+-. parsing
+```
+    - host check
+        - port healthcheck
+            tz_mcall -i="telnet localhost 3000" | grep "'^]'" | wc -l
+        - file exist 
+            tz_mcall -i="ls /etc/hosts" | grep "/etc/hosts" | wc -l
+    - url check from host
+        tz_mcall -t=get -i=http://localhost:3000/healthcheck
+
+    - only get the result
+        tz_mcall -i="ls -al" -e=std | jq '.result' | awk '{print substr($1, 2, length($1)-2)}' | base64 --decode
+```

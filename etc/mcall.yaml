@@ -9,6 +9,8 @@ request:
 
 response:
     format: json
+    coding:
+        type: url   # std, url
 
 worker:
     number: 3

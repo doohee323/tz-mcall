@@ -58,7 +58,7 @@ exit
 
 sudo chown -Rf vagrant:vagrant /var/run/docker.sock
 docker build -f docker/Dockerfile -t tz-mcall:latest .
-#docker run -d -p 8080:8080 tz-mcall:latest
+#docker run -d -p 3000:3000 tz-mcall:latest
 docker run -p 8090:8090 -it tz-mcall:latest /app/tz-mcall -c=/app/mcall.yaml
 
 #docker exec -it 6fd3377766c6 /bin/bash

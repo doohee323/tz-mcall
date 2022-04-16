@@ -31,8 +31,9 @@ var (
 	STYPE      string
 	FORMAT     string
 	WEBENABLED = false
+	BASE64     string
 	HTTPHOST   = "localhost"
-	HTTPPORT   = "8080"
+	HTTPPORT   = "3000"
 )
 
 var (
@@ -295,7 +296,7 @@ func (p *Pipeline) Run() {
 	}()
 }
 
-func execCmd() map[string]string {
+func execCmd() []string {
 	start := time.Now()
 	numCPUs := runtime.NumCPU()
 	runtime.GOMAXPROCS(numCPUs)
@@ -311,13 +312,12 @@ func execCmd() map[string]string {
 	}
 	p.request <- call
 
-	result := make(map[string]string)
+	var result []string
 	count := 0
 	LOG.Debug("============ len(INPUTS): ", len(INPUTS))
 	for a := range call.result {
 		count++
-		countStr := strconv.Itoa(count)
-		result[countStr] = a.content
+		result = append(result, a.content)
 		LOG.Debug("============ count: ", count)
 		if count >= len(INPUTS) {
 			LOG.Debug("============ closed ")
@@ -333,18 +333,17 @@ func execCmd() map[string]string {
 	return result
 }
 
-// http://localhost:8080/mcall/cmd/{"inputs":[{"input":"ls -al"},{"input":"ls"}]}
+// http://localhost:3000/mcall/cmd/{"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 func getHandle(w http.ResponseWriter, r *http.Request) {
 	STYPE = r.URL.Query().Get(":type")
 	paramStr := r.URL.Query().Get(":params")
 	LOG.Debug(STYPE, paramStr)
-
 	getInput(paramStr)
 	b := makeResponse()
 	w.Write(b)
 }
 
-// http://localhost:8080/mcall?type=post&params={"inputs":[{"input":"ls -al"},{"input":"pwd"}]}
+// http://localhost:3000/mcall?type=post&params={"inputs":[{"input":"ls -al"},{"input":"pwd"}]}
 func postHandle(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
@@ -376,18 +375,24 @@ func makeResponse() []byte {
 		res := make(map[string]string)
 		res["status"] = "OK"
 		res["ts"] = time.Now().String()
-		str, err := json.Marshal(result)
+		str, _ := json.Marshal(result)
+		if BASE64 == "std" {
+			res["result"] = base64.StdEncoding.EncodeToString(str)
+		} else if BASE64 == "url" {
+			res["result"] = base64.URLEncoding.EncodeToString(str)
+		} else {
+			res["result"] = string(str)
+		}
 		res["count"] = strconv.Itoa(len(result) - 1)
-		res["result"] = string(str)
 
 		b, err := json.Marshal(res)
 		if err != nil {
 			LOG.Errorf("error: %s", err)
 		}
-		fmt.Printf("%s", string(b))
+		fmt.Println(string(b))
 		return b
 	} else {
-		fmt.Printf("%s", result)
+		fmt.Println(result)
 		return []byte("")
 	}
 }
@@ -407,8 +412,11 @@ func webserver() {
 	wg.Add(1)
 	go func() {
 		r := pat.New()
-		r.Get("/mcall/{type}/{params}", http.HandlerFunc(getHandle))
-		r.Post("/mcall", http.HandlerFunc(postHandle))
+		r.Get("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "OK")
+		})
+		r.Get("/mcall/{type}/{params}", getHandle)
+		r.Post("/mcall", postHandle)
 		http.Handle("/", r)
 		LOG.Debug("Listening: ", HTTPHOST, HTTPPORT)
 		err := http.ListenAndServe(HTTPHOST+":"+HTTPPORT, nil)
@@ -436,7 +444,7 @@ func getInput(aInput string) {
 	if err != nil {
 		LOG.Error("Unmarshal error %s", err)
 	} else {
-		INPUTS = make([]string, 1)
+		INPUTS = make([]string, 0)
 		for i := range data.Inputs {
 			input := data.Inputs[i]["input"]
 			INPUTS = append(INPUTS, input.(string))
@@ -447,7 +455,7 @@ func getInput(aInput string) {
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 // 2 ways of run
 // - 1st: mcall web
-// 		call from brower: http://localhost:8080/main/core/1418,1419,2502,2694,2932,2933,2695
+// 		call from brower: http://localhost:3000/main/core/1418,1419,2502,2694,2932,2933,2695
 // - 2nd: mcall on console
 //		mcall -i="ls -al"
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -463,14 +471,15 @@ func main() {
 		vt   = flag.String("t", "cmd", "Type")
 		vi   = flag.String("i", "", "input")
 		vc   = flag.String("c", "", "configuration file path")
-		vw   = flag.Bool("w", true, "run webserver")
-		vp   = flag.String("p", "8080", "webserver port")
+		vw   = flag.Bool("w", false, "run webserver")
+		vp   = flag.String("p", "3000", "webserver port")
 		vf   = flag.String("f", "json", "return format")
+		ve   = flag.String("e", "", "return result with encoding")
 		vlf  = flag.String("logfile", "./mcall.log", "Logfile destination. STDOUT | STDERR or file path")
 		vll  = flag.String("loglevel", "DEBUG", "Loglevel CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG")
 	)
 	flag.Parse()
-	var args = Args{"help": *help, "t": *vt, "i": *vi, "c": *vc, "w": *vw, "p": *vp, "f": *vf, "logfile": *vlf, "loglevel": *vll}
+	var args = Args{"help": *help, "t": *vt, "i": *vi, "c": *vc, "w": *vw, "p": *vp, "f": *vf, "e": *ve, "logfile": *vlf, "loglevel": *vll}
 	mainExec(args)
 }
 
@@ -485,6 +494,7 @@ func mainExec(args Args) map[string]string {
 		vw   = args["w"]
 		vp   = args["p"]
 		vf   = args["f"]
+		ve   = args["e"]
 		vlf  = args["logfile"]
 		vll  = args["loglevel"]
 	)
@@ -510,12 +520,15 @@ func mainExec(args Args) map[string]string {
 	if vp != nil {
 		HTTPPORT = vp.(string)
 	} else {
-		HTTPPORT = "8080"
+		HTTPPORT = "3000"
 	}
 	if vf != nil {
 		FORMAT = vf.(string)
 	} else {
 		FORMAT = "json"
+	}
+	if ve != nil {
+		BASE64 = ve.(string)
 	}
 	if vlf != nil {
 		logfile = vlf.(string)
@@ -541,12 +554,8 @@ func mainExec(args Args) map[string]string {
 		logfile = viper.GetString("log.file")
 
 		WORKERNUM = viper.GetInt("worker.number")
-		webEnbleStr := viper.GetString("webserver.enable")
-		if webEnbleStr == "true" {
-			WEBENABLED = true
-		} else {
-			WEBENABLED = false
-		}
+		WEBENABLED = viper.GetBool("webserver.enable")
+		BASE64 = viper.GetString("response.coding.type")
 
 		if WEBENABLED == true {
 			HTTPHOST = viper.GetString("webserver.host")
