@@ -9,10 +9,10 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		https://golang.org
         
         #WORKDIR=/Volumes/workspace/go
-        #WORKDIR=/Volumes/workspace/tz/tz-devops-utils/projects/go
+        #WORKDIR=/Volumes/workspace/go
         
-		mkdir -p /Volumes/workspace/tz/tz-devops-utils/projects/go
-		cd /Volumes/workspace/tz/tz-devops-utils/projects/go
+		mkdir -p /Volumes/workspace/go
+		cd /Volumes/workspace/go
 
 		mkdir bin pkg src
 		mkdir -p src/github.com
@@ -21,17 +21,17 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		vi ~/.bash_profile
 		//export GOROOT=/usr/local/go
 		export GOROOT=/usr/local/opt/go/libexec
-		export GOPATH=/Volumes/workspace/tz/tz-devops-utils/projects/go
+		export GOPATH=/Volumes/workspace/go
 		export PATH=$GOPATH/bin:.:$PATH
 		source .bash_profile
 		
 	- glide
 		sudo su
 		export GOROOT=/usr/local/go
-		export GOPATH=/Volumes/workspace/tz/tz-devops-utils/projects/go
+		export GOPATH=/Volumes/workspace/go
 		export PATH=$GOPATH/bin:.:$PATH
 		// curl https://glide.sh/get | sh
-		// sudo ln -s /Volumes/workspace/tz/tz-devops-utils/projects/go/bin/glide /usr/local/bin/glide
+		// sudo ln -s /Volumes/workspace/go/bin/glide /usr/local/bin/glide
 		brew install glide
 		cf. https://github.com/Masterminds/glide
 ```
@@ -87,7 +87,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		input={"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 	
 		tz-mcall -c=/etc/mcall/mcall.yaml
-		//tz-mcall -c=/Volumes/workspace/tz/tz-devops-utils/projects/go/src/github.com/doohee.hong/tz-mcall/etc/mcall.yaml
+		//tz-mcall -c=/Volumes/workspace/go/src/github.com/doohee.hong/tz-mcall/etc/mcall.yaml
 		
 	- case 3: write result on web
 		tz-mcall -w=true
@@ -112,8 +112,8 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	-e: return result with encoding ex) std, url
 	-n: number of worker ex) default: 10
 	-l: log level ex) debug, info, error, default: debug
-	-lf: log file ex) /var/log/tz_mcall/tz_mcall.log, default: pwd
-	-c: configration file ex) /etc/tz_mcall/tz_mcall.conf, default: none
+	-lf: log file ex) /var/log/tz-mcall/tz-mcall.log, default: pwd
+	-c: configration file ex) /etc/tz-mcall/tz-mcall.conf, default: none
 	
 	cf. If parameter has space(" "), you need to replace with "`" in the JSON paramter.
 		ex) -c="add domains fortinet.com"  -> -c=\"add`domains`fortinet.com\"
@@ -134,7 +134,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 
 -. to use:
 ```
-	go get -u github.com/doohee.hong/tz_mcall/mcall
+	go get -u github.com/doohee.hong/tz-mcall/mcall
 ```
 params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
 curl http://localhost:3000/mcall/cmd/`echo $params | base64`
@@ -143,12 +143,12 @@ curl http://localhost:3000/mcall/cmd/`echo $params | base64`
 ```
     - host check
         - port healthcheck
-            tz_mcall -i="telnet localhost 3000" | grep "'^]'" | wc -l
+            tz-mcall -i="telnet localhost 3000" | grep "'^]'" | wc -l
         - file exist 
-            tz_mcall -i="ls /etc/hosts" | grep "/etc/hosts" | wc -l
+            tz-mcall -i="ls /etc/hosts" | grep "/etc/hosts" | wc -l
     - url check from host
-        tz_mcall -t=get -i=http://localhost:3000/healthcheck
+        tz-mcall -t=get -i=http://localhost:3000/healthcheck
 
     - only get the result
-        tz_mcall -i="ls -al" -e=std | jq '.result' | awk '{print substr($1, 2, length($1)-2)}' | base64 --decode
+        tz-mcall -i="ls -al" -e=std | jq '.result' | awk '{print substr($1, 2, length($1)-2)}' | base64 --decode
 ```
