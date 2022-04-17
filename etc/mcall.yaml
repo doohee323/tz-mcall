@@ -10,8 +10,8 @@ request:
         {"inputs":[{"input":"ls -al"},{"input":"pwd"}]}
 
 response:
-    format: json
-#    coding:
+    format: plan    # plan, json
+#    encoding:
 #        type: url   # std, url
 
 worker:

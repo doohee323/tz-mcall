@@ -70,6 +70,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 ```
 	- case 1: run command
 		tz-mcall -i="ls -al"
+		tz-mcall -i="ls /etc/hosts"
 		tz-mcall -t=get -i=http://localhost:3000/healthcheck
 		tz-mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
 

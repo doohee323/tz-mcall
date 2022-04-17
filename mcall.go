@@ -45,8 +45,9 @@ var (
 
 type FetchedResult struct {
 	input   string
-	err     error
+	err     string
 	content string
+	ts      string
 }
 
 type FetchedInput struct {
@@ -262,7 +263,13 @@ func (g *CallFetch) command() {
 	g.fetchedInput.Unlock()
 
 	content := <-g.parseContent(g.input, doc)
-	g.result <- FetchedResult{g.input, err, content}
+	var errCode string
+	if err != nil {
+		errCode = "-1"
+	} else {
+		errCode = "0"
+	}
+	g.result <- FetchedResult{g.input, errCode, content, time.Now().String()}
 }
 
 type Pipeline struct {
@@ -304,7 +311,7 @@ func (p *Pipeline) Run() {
 	}()
 }
 
-func execCmd() []string {
+func execCmd() []map[string]string {
 	start := time.Now()
 	numCPUs := runtime.NumCPU()
 	runtime.GOMAXPROCS(numCPUs)
@@ -320,16 +327,30 @@ func execCmd() []string {
 	}
 	p.request <- call
 
-	var result []string
+	var result = make([]map[string]string, 0)
 	count := 0
 	LOG.Debug("============ len(INPUTS): ", len(INPUTS))
 	for a := range call.result {
 		count++
-		if a.err != nil {
-			result = append(result, a.input, "-1", a.content)
+		var arry = make(map[string]string)
+		if FORMAT == "json" {
+			var rslt string
+			str, _ := json.Marshal(a.content)
+			if BASE64 == "std" {
+				rslt = base64.StdEncoding.EncodeToString(str)
+			} else if BASE64 == "url" {
+				rslt = base64.URLEncoding.EncodeToString(str)
+			} else {
+				rslt = string(str)
+			}
+			arry["input"] = a.input
+			arry["errorCode"] = a.err
+			arry["result"] = rslt
+			arry["ts"] = a.ts
 		} else {
-			result = append(result, a.input, "0", a.content)
+			arry["result"] = a.content
 		}
+		result = append(result, arry)
 		LOG.Debug("============ count: ", count)
 		if count >= len(INPUTS) {
 			LOG.Debug("============ closed ")
@@ -383,26 +404,21 @@ func postHandle(w http.ResponseWriter, r *http.Request) {
 func makeResponse() []byte {
 	result := execCmd()
 	if FORMAT == "json" {
-		res := make(map[string]string)
-		res["input"] = result[0]
-		res["status"] = result[1]
-		res["ts"] = time.Now().String()
-		str, _ := json.Marshal(result[2])
-		if BASE64 == "std" {
-			res["result"] = base64.StdEncoding.EncodeToString(str)
-		} else if BASE64 == "url" {
-			res["result"] = base64.URLEncoding.EncodeToString(str)
-		} else {
-			res["result"] = string(str)
-		}
-		b, err := json.Marshal(res)
+		b, err := json.Marshal(result)
 		if err != nil {
 			LOG.Errorf("error: %s", err)
 		}
 		fmt.Println(string(b))
 		return b
 	} else {
-		fmt.Println(result)
+		var rslt []string
+		for i := range result {
+			rslt = append(rslt, "\n")
+			rslt = append(rslt, result[i]["result"])
+			rslt = append(rslt, "=============================================================")
+			rslt = append(rslt, "\n")
+		}
+		fmt.Println(rslt)
 		return []byte("")
 	}
 }
@@ -565,7 +581,8 @@ func mainExec(args Args) map[string]string {
 
 		WORKERNUM = viper.GetInt("worker.number")
 		WEBENABLED = viper.GetBool("webserver.enable")
-		BASE64 = viper.GetString("response.coding.type")
+		FORMAT = viper.GetString("response.format")
+		BASE64 = viper.GetString("response.encoding.type")
 
 		if WEBENABLED == true {
 			HTTPHOST = viper.GetString("webserver.host")
