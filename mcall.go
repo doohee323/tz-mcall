@@ -17,7 +17,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -92,7 +91,6 @@ func fetchCmd(input string) (string, error) {
 	if input == "" {
 		return "", nil
 	}
-
 	LOG.Debug("= input: ", input)
 	doc, err := exeCmd(input)
 	if err != nil {
@@ -101,7 +99,7 @@ func fetchCmd(input string) (string, error) {
 	} else {
 		LOG.Debug(doc)
 	}
-	return string(doc), nil
+	return doc, nil
 }
 
 type ResultDoc struct {
@@ -242,20 +240,20 @@ func (g *CallFetch) command() {
 	if g.input != "" {
 		if STYPE == "cmd" {
 			doc, err = fetchCmd(g.input)
-			//if err != nil {
-			//	go func(u string) {
-			//		g.request(u)
-			//	}(g.input)
-			//	return
-			//}
+			if err != nil {
+				go func(u string) {
+					g.request(u)
+				}(g.input)
+				return
+			}
 		} else {
 			doc, err = fetchHtml(g.input)
-			//if err != nil {
-			//	go func(u string) {
-			//		g.request(u)
-			//	}(g.input)
-			//	return
-			//}
+			if err != nil {
+				go func(u string) {
+					g.request(u)
+				}(g.input)
+				return
+			}
 		}
 	}
 
@@ -328,9 +326,9 @@ func execCmd() []string {
 	for a := range call.result {
 		count++
 		if a.err != nil {
-			result = append(result, "-1", a.content)
+			result = append(result, a.input, "-1", a.content)
 		} else {
-			result = append(result, "0", a.content)
+			result = append(result, a.input, "0", a.content)
 		}
 		LOG.Debug("============ count: ", count)
 		if count >= len(INPUTS) {
@@ -386,9 +384,10 @@ func makeResponse() []byte {
 	result := execCmd()
 	if FORMAT == "json" {
 		res := make(map[string]string)
-		res["status"] = result[0]
+		res["input"] = result[0]
+		res["status"] = result[1]
 		res["ts"] = time.Now().String()
-		str, _ := json.Marshal(result[1])
+		str, _ := json.Marshal(result[2])
 		if BASE64 == "std" {
 			res["result"] = base64.StdEncoding.EncodeToString(str)
 		} else if BASE64 == "url" {
@@ -396,8 +395,6 @@ func makeResponse() []byte {
 		} else {
 			res["result"] = string(str)
 		}
-		res["count"] = strconv.Itoa(len(result) - 1)
-
 		b, err := json.Marshal(res)
 		if err != nil {
 			LOG.Errorf("error: %s", err)
