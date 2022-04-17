@@ -145,7 +145,7 @@ curl http://localhost:3000/mcall/cmd/`echo $params | base64`
         - port healthcheck
             tz-mcall -i="telnet localhost 3000" | grep "'^]'" | wc -l
         - file exist 
-            tz-mcall -i="ls /etc/hosts" | grep "/etc/hosts" | wc -l
+            tz-mcall -i="ls /etc/hosts1" | grep "/etc/hosts" | wc -l
     - url check from host
         tz-mcall -t=get -i=http://localhost:3000/healthcheck
 

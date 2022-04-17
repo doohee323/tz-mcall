@@ -46,6 +46,7 @@ var (
 
 type FetchedResult struct {
 	input   string
+	err     error
 	content string
 }
 
@@ -96,7 +97,7 @@ func fetchCmd(input string) (string, error) {
 	doc, err := exeCmd(input)
 	if err != nil {
 		LOG.Error(err)
-		return "", err
+		return doc, err
 	} else {
 		LOG.Debug(doc)
 	}
@@ -126,16 +127,16 @@ func exeCmd(str string) (string, error) {
 		args[n] = strings.Replace(args[n], "`", " ", -1)
 	}
 	cmd := exec.Command(cmdName, args...)
-
 	stdout, err := cmd.StdoutPipe()
+	if werr, ok := err.(*exec.ExitError); ok {
+		if s := werr.Error(); s != "0" {
+			errchan <- err
+		}
+	}
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		LOG.Error("Error: %s", err)
-		errchan <- err
 	}
-	//	stderr, err := cmd.StderrPipe()
-	//	if err != nil {
-	//		LOG.Error("Error: %s", err)
-	//	}
 
 	//receiving command out in this thread
 	go func() {
@@ -144,17 +145,22 @@ func exeCmd(str string) (string, error) {
 			errchan <- err
 		}
 		resultchan <- string(stdo[:])
-		//		stde, f := ioutil.ReadAll(stderr)
-		//		if f != nil {
-		//			LOG.Error(f)
-		//			res.Error = string(stde)
-		//		}
+		stde, f := ioutil.ReadAll(stderr)
+		if f != nil {
+			LOG.Error(f)
+			res.Error = string(stde)
+		}
 	}()
 
-	//fireup command non blocking
 	err = cmd.Start()
 	if err != nil {
 		errchan <- err
+		res.Error = fmt.Sprintf("Runner: %s", err.Error())
+		if res.Error != "" {
+			res.Raw = res.Error
+		}
+		LOG.Debug("= res.Error2: ", res.Error)
+		return res.Raw, errors.New(res.Error)
 	}
 
 loop:
@@ -167,6 +173,10 @@ loop:
 			break loop
 		case err := <-errchan:
 			res.Error = fmt.Sprintf("Runner: %s", err.Error())
+			if res.Error != "" {
+				res.Raw = res.Error
+				break loop
+			}
 			LOG.Debug("= res.Error2: ", res.Error)
 			break loop
 		case cmdresult := <-resultchan:
@@ -232,20 +242,20 @@ func (g *CallFetch) command() {
 	if g.input != "" {
 		if STYPE == "cmd" {
 			doc, err = fetchCmd(g.input)
-			if err != nil {
-				go func(u string) {
-					g.request(u)
-				}(g.input)
-				return
-			}
+			//if err != nil {
+			//	go func(u string) {
+			//		g.request(u)
+			//	}(g.input)
+			//	return
+			//}
 		} else {
 			doc, err = fetchHtml(g.input)
-			if err != nil {
-				go func(u string) {
-					g.request(u)
-				}(g.input)
-				return
-			}
+			//if err != nil {
+			//	go func(u string) {
+			//		g.request(u)
+			//	}(g.input)
+			//	return
+			//}
 		}
 	}
 
@@ -254,7 +264,7 @@ func (g *CallFetch) command() {
 	g.fetchedInput.Unlock()
 
 	content := <-g.parseContent(g.input, doc)
-	g.result <- FetchedResult{g.input, content}
+	g.result <- FetchedResult{g.input, err, content}
 }
 
 type Pipeline struct {
@@ -317,7 +327,11 @@ func execCmd() []string {
 	LOG.Debug("============ len(INPUTS): ", len(INPUTS))
 	for a := range call.result {
 		count++
-		result = append(result, a.content)
+		if a.err != nil {
+			result = append(result, "-1", a.content)
+		} else {
+			result = append(result, "0", a.content)
+		}
 		LOG.Debug("============ count: ", count)
 		if count >= len(INPUTS) {
 			LOG.Debug("============ closed ")
@@ -370,12 +384,11 @@ func postHandle(w http.ResponseWriter, r *http.Request) {
 
 func makeResponse() []byte {
 	result := execCmd()
-
 	if FORMAT == "json" {
 		res := make(map[string]string)
-		res["status"] = "OK"
+		res["status"] = result[0]
 		res["ts"] = time.Now().String()
-		str, _ := json.Marshal(result)
+		str, _ := json.Marshal(result[1])
 		if BASE64 == "std" {
 			res["result"] = base64.StdEncoding.EncodeToString(str)
 		} else if BASE64 == "url" {
