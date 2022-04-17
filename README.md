@@ -70,12 +70,11 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 ```
 	- case 1: run command
 		tz-mcall -i="ls -al"
-		tz-mcall -i="ls /etc/hosts"
 		tz-mcall -t=get -i=http://localhost:3000/healthcheck
 		tz-mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
 
 		cf) post with curl		
-		params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}' 
+		params='{"inputs":[{"input":"ls -al"},{"input":"pwd2"}]}' 
 		curl -d "type=cmd&params=`echo $params | base64`" http://localhost:3000/mcall
 
 		params='{"inputs":[{"input":"http://google.com/config","id":"aaa","pswd":"bbb"},{"input":"http://google.com/aaa","id":"ccc"}]}' 
@@ -126,8 +125,8 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 	params='type=post&params={"inputs":[{"input":"http://google.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://google.com/test2","id":"aaa","pswd":"bbb"}]}'
 	curl -d $params  http://localhost:3000/mcall
 	
-	params='{"inputs":[{"input":"ls -al"},{"input":"pwd"}]}'
-	curl http://localhost:3000/mcall?type=post&params=`echo $params | base64`
+	params='{"inputs":[{"input":"ls /etc/hosts"},{"input":"ls -al"}]}'
+	curl http://localhost:3000/mcall/post/`echo $params | base64`
 	
 	http://localhost:3000/mcall?type=post&params={"inputs":[{"input":"http://google.com/test1","id":"aaa","pswd":"bbb"},{"input":"http://google.com/test2","id":"aaa","pswd":"bbb"}]}
 		  

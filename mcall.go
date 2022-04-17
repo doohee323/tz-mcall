@@ -241,20 +241,20 @@ func (g *CallFetch) command() {
 	if g.input != "" {
 		if STYPE == "cmd" {
 			doc, err = fetchCmd(g.input)
-			if err != nil {
-				go func(u string) {
-					g.request(u)
-				}(g.input)
-				return
-			}
+			//if err != nil {
+			//	go func(u string) {
+			//		g.request(u)
+			//	}(g.input)
+			//	return
+			//}
 		} else {
 			doc, err = fetchHtml(g.input)
-			if err != nil {
-				go func(u string) {
-					g.request(u)
-				}(g.input)
-				return
-			}
+			//if err != nil {
+			//	go func(u string) {
+			//		g.request(u)
+			//	}(g.input)
+			//	return
+			//}
 		}
 	}
 
