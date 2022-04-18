@@ -9,7 +9,6 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		https://golang.org
         
         #WORKDIR=/Volumes/workspace/go
-        #WORKDIR=/Volumes/workspace/go
         
 		mkdir -p /Volumes/workspace/go
 		cd /Volumes/workspace/go
@@ -69,7 +68,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 -. run:
 ```
 	- case 1: run command
-		tz-mcall -i="ls -al"
+		tz-mcall -i="ls /etc/hosts"
 		tz-mcall -t=get -i=http://localhost:3000/healthcheck
 		tz-mcall -t=post -i=http://localhost:8000/uptime_list?company_id=1^start_time=1464636372^end_time=1464722772
 
@@ -87,7 +86,7 @@ Concurrence with golang for multiple request (HTTP) or shell command.
 		input={"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 	
 		tz-mcall -c=/etc/mcall/mcall.yaml
-		//tz-mcall -c=/Volumes/workspace/go/src/github.com/doohee.hong/tz-mcall/etc/mcall.yaml
+		//tz-mcall -c=/Volumes/workspace/tz/tz-devops-utils/projects/go/src/github.com/doohee323/tz-mcall/etc/mcall.yaml
 		
 	- case 3: write result on web
 		tz-mcall -w=true

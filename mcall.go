@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -27,13 +29,22 @@ var (
 	CONFIGFILE string
 	WORKERNUM  = 10
 	INPUTS     []string
+	STYPES     []string
 	STYPE      string
 	FORMAT     string
 	WEBENABLED = false
 	BASE64     string
 	HTTPHOST   = "localhost"
 	HTTPPORT   = "3000"
+	ESCONF     ES
 )
+
+type ES struct {
+	host      string
+	id        string
+	password  string
+	indexName string
+}
 
 var (
 	LOGFMT    = "%{color}%{time:15:04:05.000000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}"
@@ -64,6 +75,7 @@ type CallFetch struct {
 	p            *Pipeline
 	result       chan FetchedResult
 	input        string
+	sType        string
 }
 
 func fetchHtml(input string) (string, error) {
@@ -75,7 +87,7 @@ func fetchHtml(input string) (string, error) {
 	res, err := http.Get(input)
 	if err != nil {
 		LOG.Error(err)
-		return "", err
+		return err.Error(), err
 	}
 	defer res.Body.Close()
 	doc, err := ioutil.ReadAll(res.Body)
@@ -123,7 +135,11 @@ func exeCmd(str string) (string, error) {
 
 	// replace "`" to " "
 	for n := range args {
-		args[n] = strings.Replace(args[n], "`", " ", -1)
+		if args[n] == "'Content-Type_application/json'" {
+			args[n] = "'Content-Type: application/json'"
+		} else {
+			args[n] = strings.Replace(args[n], "`", " ", -1)
+		}
 	}
 	cmd := exec.Command(cmdName, args...)
 	stdout, err := cmd.StdoutPipe()
@@ -197,16 +213,17 @@ loop:
 	return res.Raw, errors.New(res.Error)
 }
 
-func (g *CallFetch) request(input string) {
+func (g *CallFetch) request(input string, sType string) {
 	g.p.request <- &CallFetch{
 		fetchedInput: g.fetchedInput,
 		p:            g.p,
 		result:       g.result,
 		input:        input,
+		sType:        sType,
 	}
 }
 
-func (g *CallFetch) parseContent(input string, doc string) <-chan string {
+func (g *CallFetch) parseContent(input string, sType string, doc string) <-chan string {
 	content := make(chan string)
 	go func() {
 		content <- doc
@@ -217,7 +234,7 @@ func (g *CallFetch) parseContent(input string, doc string) <-chan string {
 			if _, ok := g.fetchedInput.m[INPUTS[n]]; !ok {
 				chk = true
 				val = INPUTS[n]
-				g.request(val)
+				g.request(val, sType)
 				break
 			}
 		}
@@ -239,11 +256,11 @@ func (g *CallFetch) command() {
 	var doc string
 	var err error
 	if g.input != "" {
-		if STYPE == "cmd" {
+		if g.sType == "cmd" {
 			doc, err = fetchCmd(g.input)
 			//if err != nil {
 			//	go func(u string) {
-			//		g.request(u)
+			//		g.request(u, sType)
 			//	}(g.input)
 			//	return
 			//}
@@ -251,7 +268,7 @@ func (g *CallFetch) command() {
 			doc, err = fetchHtml(g.input)
 			//if err != nil {
 			//	go func(u string) {
-			//		g.request(u)
+			//		g.request(u, sType)
 			//	}(g.input)
 			//	return
 			//}
@@ -262,14 +279,16 @@ func (g *CallFetch) command() {
 	g.fetchedInput.m[g.input] = err
 	g.fetchedInput.Unlock()
 
-	content := <-g.parseContent(g.input, doc)
+	content := <-g.parseContent(g.input, g.sType, doc)
 	var errCode string
 	if err != nil {
 		errCode = "-1"
 	} else {
 		errCode = "0"
 	}
-	g.result <- FetchedResult{g.input, errCode, content, time.Now().String()}
+	now := time.Now().UTC()
+	var tim = now.Format("2006-01-02T15:04:05.000")
+	g.result <- FetchedResult{g.input, errCode, content, tim}
 }
 
 type Pipeline struct {
@@ -319,11 +338,18 @@ func execCmd() []map[string]string {
 	p := NewPipeline()
 	p.Run()
 
+	var sType string
+	if len(STYPES) < 1 {
+		sType = "cmd"
+	} else {
+		sType = STYPES[0]
+	}
 	call := &CallFetch{
 		fetchedInput: &FetchedInput{m: make(map[string]error)},
 		p:            p,
 		result:       make(chan FetchedResult),
 		input:        INPUTS[0],
+		sType:        sType,
 	}
 	p.request <- call
 
@@ -408,7 +434,50 @@ func makeResponse() []byte {
 		if err != nil {
 			LOG.Errorf("error: %s", err)
 		}
-		fmt.Println(string(b))
+		outStr := string(b)
+		fmt.Println(outStr)
+		if ESCONF.host != "" {
+			//outStr = "{\"values\": " + outStr + "}"
+			//outStr = strings.Replace(outStr, "\"\\\"", "\"", -1)
+			//outStr = strings.Replace(outStr, "\\\"", "", -1)
+			//outStr = strings.Replace(outStr, "\"", "\\\"", -1)
+			//esCmd := "curl -XPOST -u '" + adminPassword + "' " + esUrl + "/" + indexName + "/doc -H 'Content-Type: application/json' -d \"" + outStr + "\""
+
+			// make a json
+			outStr = "{ \"index\":{} }\n" + outStr[1:len(outStr)-1] + "\n"
+			outStr = strings.Replace(outStr, "\"\\\"", "\"", -1)
+			outStr = strings.Replace(outStr, "\\\"", "", -1)
+			outStr = strings.Replace(outStr, "},{", "}\n{ \"index\":{} }\n{", -1)
+			var timestamp = strconv.FormatInt(time.Now().Unix(), 10)
+			jsonFile := fmt.Sprintf("/tmp/test_%s.json", timestamp)
+			jsFile, err := os.OpenFile(jsonFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+			if err != nil {
+				LOG.Fatalf("jsFile error: %s %s", jsFile, err)
+			}
+			jsFile.WriteString(outStr)
+			jsFile.Close()
+
+			// make a shell
+			adminPassword := ESCONF.id + ":" + ESCONF.password
+			esUrl := ESCONF.host
+			indexName := ESCONF.indexName
+			esCmd := "curl -XPOST -u '" + adminPassword + "' " + esUrl + "/" + indexName + "/_bulk -H 'Content-Type: application/json' --data-binary @" + jsonFile
+			shFile := fmt.Sprintf("/tmp/test_%s.sh", timestamp)
+			esFile, err := os.OpenFile(shFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+			if err != nil {
+				LOG.Fatalf("esFile error: %s %s", esFile, err)
+			}
+			esFile.WriteString(esCmd)
+			esFile.Close()
+			doc, err := exeCmd("bash " + shFile)
+			if err != nil {
+				LOG.Error(err)
+			} else {
+				LOG.Debug(doc)
+				os.Remove(jsonFile)
+				os.Remove(shFile)
+			}
+		}
 		return b
 	} else {
 		var rslt []string
@@ -421,6 +490,14 @@ func makeResponse() []byte {
 		fmt.Println(rslt)
 		return []byte("")
 	}
+}
+
+func PrettyString(str string) (string, error) {
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, []byte(str), "", "    "); err != nil {
+		return "", err
+	}
+	return prettyJSON.String(), nil
 }
 
 func webserver() {
@@ -465,15 +542,19 @@ func getInput(aInput string) {
 		LOG.Error("base64 error %s", err)
 		err = json.Unmarshal([]byte(aInput), &data)
 	} else {
-		err = json.Unmarshal([]byte(rawDecodedText), &data)
+		err = json.Unmarshal(rawDecodedText, &data)
 	}
 	if err != nil {
 		LOG.Error("Unmarshal error %s", err)
 	} else {
 		INPUTS = make([]string, 0)
 		for i := range data.Inputs {
-			input := data.Inputs[i]["input"]
-			INPUTS = append(INPUTS, input.(string))
+			if value, exist := data.Inputs[i]["input"]; exist {
+				INPUTS = append(INPUTS, value.(string))
+			}
+			if value, exist := data.Inputs[i]["type"]; exist {
+				STYPES = append(STYPES, value.(string))
+			}
 		}
 	}
 }
@@ -583,6 +664,11 @@ func mainExec(args Args) map[string]string {
 		WEBENABLED = viper.GetBool("webserver.enable")
 		FORMAT = viper.GetString("response.format")
 		BASE64 = viper.GetString("response.encoding.type")
+
+		ESCONF = ES{viper.GetString("response.es.host"),
+			viper.GetString("response.es.id"),
+			viper.GetString("response.es.password"),
+			viper.GetString("response.es.index_name")}
 
 		if WEBENABLED == true {
 			HTTPHOST = viper.GetString("webserver.host")
