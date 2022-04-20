@@ -1,27 +1,29 @@
 request:
-#    type: post
-#    type: get
-#    input: |
-#       {"inputs":[{"input":"http://google.com/config","id":"aaa","pswd":"bbb"},
-#                      {"input":"http://google.com/bbb","id":"aaa","pswd":"bbb"}]}
+    #    type: post
+    #    type: get
+    #    input: |
+    #       {"inputs":[{"input":"http://google.com/config","id":"aaa","pswd":"bbb"},
+    #                      {"input":"http://google.com/bbb","id":"aaa","pswd":"bbb"}]}
 
-#    type: cmd
-#    input: |
-#        {"inputs":[{"input":"ls -al"},{"input":"pwd"}]}
+    #    type: cmd
+    #    input: |
+    #        {"inputs":[{"input":"ls -al"},{"input":"pwd"}]}
 
+    subject: "allow_access"
+    timeout: 3
     input: |
         {
             "inputs":
                 [
-                    {"type":"cmd", "input":"pwd"},
-                    {"type":"get", "input":"http://localhost:3000/healthcheck"}
+                    {"name": "jenkins", "type":"get", "input":"http://jenkins.tzcorp.com/"},
+                    {"name": "tzcorp-dev-redis", "type":"cmd", "input":"telnet redis-dev.tzcorp.com 6379"}
                 ]
         }
 
 response:
     format: json    # plan, json
-#    encoding:
-#        type: url   # std, url
+    #    encoding:
+    #        type: url   # std, url
     es:
         host: es.elk.eks-main-s.tzcorp.com
         id: elastic
@@ -55,7 +57,7 @@ response:
 #curl -XPOST -u ${admin_password} ${esUrl}/${indexName}/doc -H "Content-Type: application/json" -d @test.json
 
 worker:
-    number: 3
+    number: 10
 
 log:
     level: debug

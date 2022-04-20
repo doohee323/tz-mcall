@@ -10,16 +10,14 @@ pipeline {
         NAMESPACE = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "devops" : "devops-dev"}"
         DOCKER_FILE = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "Dockerfile_prod" : "Dockerfile"}"
         BRANCH_ROLLOUT = "true" // optional) default: false
-        K8S_SOURCE = "${env.BRANCH_NAME == "main" ? "k8s.yaml" : env.BRANCH_NAME == "qa" ? "k8s-qa.yaml" : "k8s-dev.yaml"}"
+        K8S_SOURCE = "${env.BRANCH_NAME == "main" ? "k8s.yaml" : env.BRANCH_NAME == "block" || env.BRANCH_NAME == "access" ? "k8s-crontab.yaml" : "k8s-dev.yaml"}"
         K8S_FILE = "k8s.yaml"
 
         // *** for changing cluster ***
         AWS_REGION = "ap-northeast-2"
         CLUSTER_NAME = "eks-main-s"
         DOMAIN_NAME = "tzcorp.com"
-        ACCOUNT_ID = "215559030652"
-        CERTIFICATE = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "8b1c6fc5-510b-4453-badf-7f1d314cc3b1" : "01fe7ad7-831f-45e1-a53c-52f3c1e4fcac"}"
-        NODE_ENV = "${env.BRANCH_NAME == "main" || env.BRANCH_NAME == "qa" ? "production" : "development"}"
+        ACCOUNT_ID = "xxxxxxxx"
 
         // *** fixed variables ***
         GIT_BRANCH = "${env.GIT_BRANCH}"
@@ -59,7 +57,7 @@ pipeline {
          steps {
             dir("${workspace}"){
                 script{
-//                     sh "bash ./k8s/config.sh "+"${GIT_BRANCH} "+"${STAGING}"
+                    sh "bash ./k8s/config.sh "+"${GIT_BRANCH} "+"${STAGING}"
                     sh "bash /var/lib/jenkins/k8s.sh build"
                 }
             }

@@ -28,9 +28,13 @@ import (
 var (
 	CONFIGFILE string
 	WORKERNUM  = 10
+	TIMEOUT    = 10
+	SUBJECT    string
 	INPUTS     []string
 	STYPES     []string
 	STYPE      string
+	NAMES      []string
+	NAME       string
 	FORMAT     string
 	WEBENABLED = false
 	BASE64     string
@@ -56,6 +60,7 @@ var (
 
 type FetchedResult struct {
 	input   string
+	name    string
 	err     string
 	content string
 	ts      string
@@ -73,16 +78,16 @@ type Commander interface {
 type CallFetch struct {
 	fetchedInput *FetchedInput
 	p            *Pipeline
-	result       chan FetchedResult
 	input        string
 	sType        string
+	name         string
+	result       chan FetchedResult
 }
 
 func fetchHtml(input string) (string, error) {
 	if input == "" {
 		return "", nil
 	}
-
 	LOG.Debug("= input: ", input)
 	res, err := http.Get(input)
 	if err != nil {
@@ -122,17 +127,13 @@ type ResultDoc struct {
 
 func exeCmd(str string) (string, error) {
 	res := ResultDoc{}
-
-	//make channels for out or for error
 	resultchan := make(chan string)
 	errchan := make(chan error, 10)
-
 	parts := strings.Fields(str)
 	cmdName := parts[0]
 	LOG.Debug("= cmdName: ", cmdName)
 	args := parts[1:len(parts)]
 	LOG.Debug("= args: ", args)
-
 	// replace "`" to " "
 	for n := range args {
 		if args[n] == "'Content-Type_application/json'" {
@@ -152,8 +153,6 @@ func exeCmd(str string) (string, error) {
 	if err != nil {
 		LOG.Error("Error: %s", err)
 	}
-
-	//receiving command out in this thread
 	go func() {
 		stdo, err := ioutil.ReadAll(stdout)
 		if err != nil {
@@ -166,7 +165,6 @@ func exeCmd(str string) (string, error) {
 			res.Error = string(stde)
 		}
 	}()
-
 	err = cmd.Start()
 	if err != nil {
 		errchan <- err
@@ -181,16 +179,16 @@ func exeCmd(str string) (string, error) {
 loop:
 	for {
 		select {
-		case <-time.After(time.Duration(360) * time.Second):
+		case <-time.After(time.Duration(TIMEOUT) * time.Second):
 			cmd.Process.Kill()
 			res.Error = "Runner: timedout"
+			res.Raw = res.Error
 			LOG.Debug("= res.Error1: ", res.Error)
 			break loop
 		case err := <-errchan:
 			res.Error = fmt.Sprintf("Runner: %s", err.Error())
 			if res.Error != "" {
 				res.Raw = res.Error
-				break loop
 			}
 			LOG.Debug("= res.Error2: ", res.Error)
 			break loop
@@ -202,39 +200,41 @@ loop:
 			LOG.Debug("= cmdresult: ", cmdresult)
 		}
 	}
-
 	cmd.Wait()
-
 	if res.Error == "" {
 		res.Error = "Runner: OK"
 		return res.Raw, nil
 	}
-
 	return res.Raw, errors.New(res.Error)
 }
 
-func (g *CallFetch) request(input string, sType string) {
+func (g *CallFetch) request(input string, sType string, name string) {
 	g.p.request <- &CallFetch{
 		fetchedInput: g.fetchedInput,
 		p:            g.p,
-		result:       g.result,
 		input:        input,
 		sType:        sType,
+		name:         name,
+		result:       g.result,
 	}
 }
 
-func (g *CallFetch) parseContent(input string, sType string, doc string) <-chan string {
+func (g *CallFetch) parseContent(doc string) <-chan string {
 	content := make(chan string)
 	go func() {
 		content <- doc
 		chk := false
-		val := ""
+		input := ""
+		sType := ""
+		name := ""
 		g.fetchedInput.Lock()
 		for n := range INPUTS {
 			if _, ok := g.fetchedInput.m[INPUTS[n]]; !ok {
 				chk = true
-				val = INPUTS[n]
-				g.request(val, sType)
+				input = INPUTS[n]
+				sType = STYPES[n]
+				name = NAMES[n]
+				g.request(input, sType, name)
 				break
 			}
 		}
@@ -252,7 +252,6 @@ func (g *CallFetch) command() {
 		return
 	}
 	g.fetchedInput.Unlock()
-
 	var doc string
 	var err error
 	if g.input != "" {
@@ -274,12 +273,10 @@ func (g *CallFetch) command() {
 			//}
 		}
 	}
-
 	g.fetchedInput.Lock()
 	g.fetchedInput.m[g.input] = err
 	g.fetchedInput.Unlock()
-
-	content := <-g.parseContent(g.input, g.sType, doc)
+	content := <-g.parseContent(doc)
 	var errCode string
 	if err != nil {
 		errCode = "-1"
@@ -287,8 +284,7 @@ func (g *CallFetch) command() {
 		errCode = "0"
 	}
 	now := time.Now().UTC()
-	var tim = now.Format("2006-01-02T15:04:05.000")
-	g.result <- FetchedResult{g.input, errCode, content, tim}
+	g.result <- FetchedResult{g.input, g.name, errCode, content, now.Format("2006-01-02T15:04:05.000")}
 }
 
 type Pipeline struct {
@@ -344,12 +340,19 @@ func execCmd() []map[string]string {
 	} else {
 		sType = STYPES[0]
 	}
+	var name string
+	if len(NAMES) < 1 {
+		name = NAME
+	} else {
+		name = NAMES[0]
+	}
 	call := &CallFetch{
 		fetchedInput: &FetchedInput{m: make(map[string]error)},
 		p:            p,
-		result:       make(chan FetchedResult),
 		input:        INPUTS[0],
 		sType:        sType,
+		name:         name,
+		result:       make(chan FetchedResult),
 	}
 	p.request <- call
 
@@ -369,7 +372,11 @@ func execCmd() []map[string]string {
 			} else {
 				rslt = string(str)
 			}
+			if SUBJECT != "" {
+				arry["subject"] = SUBJECT
+			}
 			arry["input"] = a.input
+			arry["name"] = a.name
 			arry["errorCode"] = a.err
 			arry["result"] = rslt
 			arry["ts"] = a.ts
@@ -386,7 +393,6 @@ func execCmd() []map[string]string {
 			LOG.Debug("============ test ")
 		}
 	}
-
 	elapsed := time.Since(start)
 	LOG.Debug("elapsed: ", elapsed)
 	return result
@@ -395,6 +401,7 @@ func execCmd() []map[string]string {
 // http://localhost:3000/mcall/cmd/{"inputs":[{"input":"ls -al"},{"input":"ls"}]}
 func getHandle(w http.ResponseWriter, r *http.Request) {
 	STYPE = r.URL.Query().Get(":type")
+	NAME = r.URL.Query().Get(":name")
 	paramStr := r.URL.Query().Get(":params")
 	LOG.Debug(STYPE, paramStr)
 	getInput(paramStr)
@@ -409,19 +416,17 @@ func postHandle(w http.ResponseWriter, r *http.Request) {
 		LOG.Error("ParseForm %s", err)
 	}
 	LOG.Debugf("\n what we got was %+v\n", r.Form)
-
 	if STYPE = r.FormValue("type"); STYPE == "" {
 		LOG.Warning(fmt.Sprintf("bad STYPE received %+v", r.Form["type"]))
 		return
 	}
-
+	NAME = r.FormValue("name")
 	var paramStr = ""
 	if paramStr = r.FormValue("params"); paramStr == "" {
 		LOG.Warning(fmt.Sprintf("bad params received %+v", r.Form["params"]))
 		return
 	}
 	LOG.Debug(STYPE, paramStr)
-
 	getInput(paramStr)
 	b := makeResponse()
 	io.WriteString(w, string(b))
@@ -548,6 +553,7 @@ func getInput(aInput string) {
 		LOG.Error("Unmarshal error %s", err)
 	} else {
 		INPUTS = make([]string, 0)
+		NAMES = make([]string, 0)
 		for i := range data.Inputs {
 			if value, exist := data.Inputs[i]["input"]; exist {
 				INPUTS = append(INPUTS, value.(string))
@@ -555,14 +561,17 @@ func getInput(aInput string) {
 			if value, exist := data.Inputs[i]["type"]; exist {
 				STYPES = append(STYPES, value.(string))
 			}
+			if value, exist := data.Inputs[i]["name"]; exist {
+				NAMES = append(NAMES, value.(string))
+			}
 		}
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-// 2 ways of run
+// 2 ways to run
 // - 1st: mcall web
-// 		call from brower: http://localhost:3000/main/core/1418,1419,2502,2694,2932,2933,2695
+// 		call from browser: http://localhost:3000/main/core/1418,1419,2502,2694,2932,2933,2695
 // - 2nd: mcall on console
 //		mcall -i="ls -al"
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -582,11 +591,12 @@ func main() {
 		vp   = flag.String("p", "3000", "webserver port")
 		vf   = flag.String("f", "json", "return format")
 		ve   = flag.String("e", "", "return result with encoding")
+		vn   = flag.String("n", "", "request name")
 		vlf  = flag.String("logfile", "./mcall.log", "Logfile destination. STDOUT | STDERR or file path")
 		vll  = flag.String("loglevel", "DEBUG", "Loglevel CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG")
 	)
 	flag.Parse()
-	var args = Args{"help": *help, "t": *vt, "i": *vi, "c": *vc, "w": *vw, "p": *vp, "f": *vf, "e": *ve, "logfile": *vlf, "loglevel": *vll}
+	var args = Args{"help": *help, "t": *vt, "i": *vi, "c": *vc, "w": *vw, "p": *vp, "f": *vf, "e": *ve, "n": *vn, "logfile": *vlf, "loglevel": *vll}
 	mainExec(args)
 }
 
@@ -602,6 +612,7 @@ func mainExec(args Args) map[string]string {
 		vp   = args["p"]
 		vf   = args["f"]
 		ve   = args["e"]
+		vn   = args["n"]
 		vlf  = args["logfile"]
 		vll  = args["loglevel"]
 	)
@@ -636,6 +647,9 @@ func mainExec(args Args) map[string]string {
 	}
 	if ve != nil {
 		BASE64 = ve.(string)
+	}
+	if vn != nil {
+		NAME = vn.(string)
 	}
 	if vlf != nil {
 		logfile = vlf.(string)
@@ -674,8 +688,11 @@ func mainExec(args Args) map[string]string {
 			HTTPHOST = viper.GetString("webserver.host")
 			HTTPPORT = viper.GetString("webserver.port")
 		} else {
+			SUBJECT = viper.GetString("request.subject")
+			TIMEOUT = viper.GetInt("request.timeout")
 			input := viper.GetString("request.input")
 			STYPE = viper.GetString("request.type")
+			NAME = viper.GetString("request.name")
 			getInput(input)
 		}
 	}
@@ -705,11 +722,11 @@ func mainExec(args Args) map[string]string {
 	logging.SetBackend(logformatted)
 	logging.SetLevel(GLOGLEVEL, "")
 
-	LOG.Debug("workerNumber: ", WORKERNUM)
-	LOG.Debug("type: ", STYPE)
-	LOG.Debug("webEnabled: ", WEBENABLED)
-	LOG.Debug("httphost: ", HTTPHOST)
-	LOG.Debug("httpport: ", HTTPPORT)
+	LOG.Debug("WORKERNUM: ", WORKERNUM)
+	LOG.Debug("STYPE: ", STYPE)
+	LOG.Debug("WEBENABLED: ", WEBENABLED)
+	LOG.Debug("HTTPHOST: ", HTTPHOST)
+	LOG.Debug("HTTPPORT: ", HTTPPORT)
 
 	////[ run app ]////////////////////////////////////////////////////////////////////////////////
 	var rslt = map[string]string{}
