@@ -28,8 +28,7 @@ RUN export PATH=/app:.:$PATH
 RUN mkdir -p /app/log
 RUN /bin/chmod -Rf 777 /app
 
-#RUN apt update
-#RUN apt install curl -y
+RUN apt update
+RUN apt install curl telnet -y
 
 CMD ["/app/tz-mcall", "-c=/app/mcall.yaml"]
-#CMD ["/bin/sh", "-c", "while true; do sleep 24h; done"]

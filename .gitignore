@@ -4,7 +4,7 @@
 /vendor/
 /glide.lock
 /mcall.log
-/.DS_Store
+.DS_Store
 tz-mcall
 s3
 .idea

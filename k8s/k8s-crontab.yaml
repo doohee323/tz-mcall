@@ -1,0 +1,17 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: tz-mcall-${GIT_BRANCH}
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          imagePullSecrets:
+            - name: tz-registrykey
+          containers:
+            - name: tz-mcall-${GIT_BRANCH}
+              image: ${REPOSITORY_TAG}
+              imagePullPolicy: Always
+          restartPolicy: OnFailure
