@@ -30,6 +30,7 @@ pipeline {
         REGISTRY_CREDENTIAL = 'jenkins-aws-secret'
         AWS_ACCESS_KEY_ID     = credentials('jenkins-aws-secret-key-id')
         AWS_SECRET_ACCESS_KEY = credentials('jenkins-aws-secret-access-key')
+        DEVOPS_ADMIN_PASSWORD = credentials('devops_admin_password')
    }
 
    stages {

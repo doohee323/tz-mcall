@@ -27,10 +27,10 @@ response:
     es:
         host: es.elk.eks-main-s.tzcorp.com
         id: elastic
-        password: xxxxxxx
+        password: DEVOPS_ADMIN_PASSWORD
         index_name: sample_data
 
-#admin_password='elastic:xxxxxxx'
+#admin_password='elastic:DEVOPS_ADMIN_PASSWORD'
 #esUrl=es.elk.eks-main-s.tzcorp.com
 #indexName=sample_data
 #curl -XDELETE -u ${admin_password} ${esUrl}/${indexName}

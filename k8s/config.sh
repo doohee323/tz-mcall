@@ -13,6 +13,9 @@ rm -Rf etc/mcall.yaml
 #aws s3 cp s3://${DOCKER_NAME}-${CLUSTER_NAME}/config/${STAGING}/mcall.yaml etc/mcall.yaml --profile ${CLUSTER_NAME}
 #sed -i -e "s|GIT_BRANCH|${GIT_BRANCH}|" etc/mcall.yaml
 
+sed -i -e "s|DEVOPS_ADMIN_PASSWORD|${DEVOPS_ADMIN_PASSWORD}|" etc/allow_access.yaml
+sed -i -e "s|DEVOPS_ADMIN_PASSWORD|${DEVOPS_ADMIN_PASSWORD}|" etc/block_access.yaml
+
 if [[ "${GIT_BRANCH}" == "block" ]]; then
   cp -Rf etc/block_access.yaml etc/mcall.yaml
 elif [[ "${GIT_BRANCH}" == "access" ]]; then
